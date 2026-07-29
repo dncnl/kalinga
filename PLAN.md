@@ -53,8 +53,10 @@ caregiver and family can see.
       `GET /health`, boots without Firebase creds configured)
 - [x] Upload endpoint (`POST /households/:householdId/care-recipients/:careRecipientId/observations/upload-url`
       — auth-gated, checks active caregiver assignment, returns a signed
-      Storage PUT URL. Not yet tested against a real Firebase project —
-      only unit-tested with mocks. Nothing calls this from the mobile app yet.)
+      Storage PUT URL. Unit-tested with mocks, and smoke-tested live against
+      the real `kalinga-bc97f` Firebase project (Firestore read/write +
+      Storage signed URL generation both confirmed working). Nothing calls
+      this from the mobile app yet.)
 - [ ] Transcribe + translate + save observation
 - [ ] Daily/weekly trend rollup
 - [ ] Mic button records & uploads
