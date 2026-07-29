@@ -1,0 +1,391 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn() && request.auth.token.platformAdmin == true;
+    }
+
+    function memberPath(householdId) {
+      return /databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid);
+    }
+
+    function isActiveHouseholdMember(householdId) {
+      return signedIn()
+        && exists(memberPath(householdId))
+        && get(memberPath(householdId)).data.status == 'active';
+    }
+
+    function householdRole(householdId) {
+      return get(memberPath(householdId)).data.role;
+    }
+
+    function isPrivilegedHouseholdMember(householdId) {
+      return isActiveHouseholdMember(householdId)
+        && householdRole(householdId) in [
+          'householdAdmin',
+          'family',
+          'careCoordinator',
+          'clinician',
+          'agencyStaff'
+        ];
+    }
+
+    function isAssignedCaregiver(householdId, careRecipientId) {
+      return isActiveHouseholdMember(householdId)
+        && householdRole(householdId) == 'caregiver'
+        && exists(/databases/$(database)/documents/households/$(householdId)/careRecipients/$(careRecipientId)/assignments/$(request.auth.uid))
+        && get(/databases/$(database)/documents/households/$(householdId)/careRecipients/$(careRecipientId)/assignments/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function canAccessCareRecipient(householdId, careRecipientId) {
+      return isPlatformAdmin()
+        || isPrivilegedHouseholdMember(householdId)
+        || isAssignedCaregiver(householdId, careRecipientId);
+    }
+
+    function isRecordAuthor(data) {
+      return signedIn()
+        && (
+          data.get('authorUid', '') == request.auth.uid
+          || data.get('reportedByUid', '') == request.auth.uid
+          || data.get('createdByUid', '') == request.auth.uid
+          || data.get('generatedByUid', '') == request.auth.uid
+          || data.get('outgoingCaregiverUid', '') == request.auth.uid
+        );
+    }
+
+    function recordIsVisible(data, householdId, careRecipientId) {
+      let visibility = data.get('visibility', 'careTeam');
+      return isPlatformAdmin()
+        || (visibility == 'privateToAuthor' && isRecordAuthor(data))
+        || (visibility == 'selectedUsers' && signedIn() && request.auth.uid in data.get('allowedUserIds', []))
+        || (visibility == 'household' && isActiveHouseholdMember(householdId))
+        || (visibility == 'careTeam' && canAccessCareRecipient(householdId, careRecipientId));
+    }
+
+    function isOrganizationMember(organizationId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/organizations/$(organizationId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/organizations/$(organizationId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // Public/reference data. Draft records may still be present; the application must
+    // filter by status and the backend must prevent unapproved content from being used.
+    match /_schema/{document=**} {
+      allow read: if signedIn() || isPlatformAdmin();
+      allow write: if false;
+    }
+    match /appConfig/{document=**} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /featureFlags/{document=**} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /supportedLocales/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /governmentServices/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /emergencyPhrasebooks/{phrasebookId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow write: if false;
+      match /phrases/{phraseId} {
+        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+    match /terminologyGlossaries/{glossaryId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow write: if false;
+      match /entries/{entryId} {
+        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+    match /knowledgeArticles/{articleId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow write: if false;
+    }
+    match /trainingModules/{moduleId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow write: if false;
+      match /lessons/{lessonId} {
+        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+    match /safetyRuleSets/{ruleSetId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow write: if false;
+      match /rules/{ruleId} {
+        allow read: if isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+    match /promptTemplates/{document=**} {
+      allow read, write: if false;
+    }
+    match /modelPolicies/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Partner organizations.
+    match /organizations/{organizationId} {
+      allow read: if signedIn() && (resource.data.status == 'active' || isOrganizationMember(organizationId) || isPlatformAdmin());
+      allow write: if false;
+      match /members/{uid} {
+        allow read: if isOrganizationMember(organizationId) || request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /sites/{siteId} {
+        allow read: if isOrganizationMember(organizationId) || isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+
+    // User-owned profile and private spaces. Sensitive writes are made through the Node API.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+      allow write: if false;
+
+      match /devices/{deviceId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /preferences/{preferenceId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /notifications/{notificationId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /trainingProgress/{moduleId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /wellbeingCheckIns/{checkInId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /privateSupportRequests/{requestId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+        match /messages/{messageId} {
+          allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+          allow write: if false;
+        }
+        match /referrals/{referralId} {
+          allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+          allow write: if false;
+        }
+      }
+      match /privateMediaAssets/{assetId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /consents/{consentId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /dataSubjectRequests/{requestId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /emergencySessions/{sessionId} {
+        allow read: if signedIn() && request.auth.uid == uid || isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Household shared-care boundary.
+    match /households/{householdId} {
+      allow read: if isActiveHouseholdMember(householdId) || isPlatformAdmin();
+      allow write: if false;
+
+      match /members/{uid} {
+        allow read: if isActiveHouseholdMember(householdId) || (signedIn() && request.auth.uid == uid) || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /invitations/{invitationId} {
+        allow read: if isPrivilegedHouseholdMember(householdId) || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /settings/{settingsId} {
+        allow read: if isActiveHouseholdMember(householdId) || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /organizationLinks/{linkId} {
+        allow read: if isPrivilegedHouseholdMember(householdId) || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /accessGrants/{grantId} {
+        allow read: if isPrivilegedHouseholdMember(householdId)
+          || (signedIn() && request.auth.uid == resource.data.get('grantedToUid', ''))
+          || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /threads/{threadId} {
+        allow read: if isPlatformAdmin()
+          || isPrivilegedHouseholdMember(householdId)
+          || (isActiveHouseholdMember(householdId) && request.auth.uid in resource.data.get('participantUids', []));
+        allow write: if false;
+        match /messages/{messageId} {
+          allow read: if isPlatformAdmin()
+            || isPrivilegedHouseholdMember(householdId)
+            || (isActiveHouseholdMember(householdId)
+              && request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)/threads/$(threadId)).data.get('participantUids', []));
+          allow write: if false;
+        }
+      }
+      match /serviceReferrals/{referralId} {
+        allow read: if isPrivilegedHouseholdMember(householdId) || isPlatformAdmin();
+        allow write: if false;
+      }
+      match /mediaAssets/{assetId} {
+        allow read: if isActiveHouseholdMember(householdId) || isPlatformAdmin();
+        allow write: if false;
+      }
+
+      match /careRecipients/{careRecipientId} {
+        allow read: if canAccessCareRecipient(householdId, careRecipientId);
+        allow write: if false;
+
+        match /assignments/{caregiverUid} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId)
+            || (signedIn() && request.auth.uid == caregiverUid);
+          allow write: if false;
+        }
+        match /carePlans/{carePlanId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /observations/{observationId} {
+          allow read: if recordIsVisible(resource.data, householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /instructions/{instructionId} {
+          allow read: if isPlatformAdmin()
+            || isPrivilegedHouseholdMember(householdId)
+            || (isAssignedCaregiver(householdId, careRecipientId)
+              && request.auth.uid in resource.data.get('assignedCaregiverUids', []));
+          allow write: if false;
+          match /steps/{stepId} {
+            allow read: if canAccessCareRecipient(householdId, careRecipientId);
+            allow write: if false;
+          }
+          match /confirmations/{confirmationId} {
+            allow read: if canAccessCareRecipient(householdId, careRecipientId);
+            allow write: if false;
+          }
+        }
+        match /tasks/{taskId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /taskEvents/{taskEventId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /medications/{medicationId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /medicationEvents/{eventId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /measurements/{measurementId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /incidents/{incidentId} {
+          allow read: if recordIsVisible(resource.data, householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /handovers/{handoverId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /appointments/{appointmentId} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /documents/{documentId} {
+          allow read: if recordIsVisible(resource.data, householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /reports/{reportId} {
+          allow read: if recordIsVisible(resource.data, householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /alerts/{alertId} {
+          allow read: if isPlatformAdmin()
+            || isPrivilegedHouseholdMember(householdId)
+            || (isAssignedCaregiver(householdId, careRecipientId)
+              && request.auth.uid in resource.data.get('recipientUids', []));
+          allow write: if false;
+        }
+        match /dailySummaries/{dateKey} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+        match /weeklySummaries/{weekKey} {
+          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
+      }
+    }
+
+    // Server-owned operational collections. The Admin SDK bypasses rules and must
+    // implement authorization in the Node.js API before every write/read.
+    match /processingJobs/{document=**} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /aiRuns/{document=**} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /notificationOutbox/{document=**} {
+      allow read, write: if false;
+    }
+    match /idempotencyKeys/{document=**} {
+      allow read, write: if false;
+    }
+    match /auditEvents/{document=**} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /scheduledWork/{document=**} {
+      allow read, write: if false;
+    }
+    match /migrations/{document=**} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+
+    match /pilotStudies/{studyId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+      match /{document=**} {
+        allow read: if isPlatformAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Fail closed for every collection not explicitly modeled above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

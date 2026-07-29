@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Public, non-sensitive brand/help assets only.
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // All care audio, photos, labels, reports, and private support attachments are
+    // uploaded/downloaded through the authenticated Node.js API using short-lived
+    // signed URLs. The Firebase Admin SDK bypasses these client rules.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

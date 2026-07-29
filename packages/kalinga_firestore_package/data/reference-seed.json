@@ -1,0 +1,852 @@
+{
+  "formatVersion": "1.0.0",
+  "description": "Reference and configuration data for Kalinga. Safe to re-run; documents are overwritten by path.",
+  "documents": [
+    {
+      "path": "_schema/1.0.0",
+      "data": {
+        "version": "1.0.0",
+        "database": "cloud-firestore",
+        "releasedAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T00:00:00+08:00"
+        },
+        "compatibleApiVersions": [
+          "v1"
+        ],
+        "collectionManifest": [
+          "_schema/{version}",
+          "appConfig/{configId}",
+          "featureFlags/{flagId}",
+          "supportedLocales/{localeCode}",
+          "governmentServices/{serviceId}",
+          "emergencyPhrasebooks/{phrasebookId}",
+          "emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}",
+          "terminologyGlossaries/{glossaryId}",
+          "terminologyGlossaries/{glossaryId}/entries/{entryId}",
+          "knowledgeArticles/{articleId}",
+          "trainingModules/{moduleId}",
+          "trainingModules/{moduleId}/lessons/{lessonId}",
+          "safetyRuleSets/{ruleSetId}",
+          "safetyRuleSets/{ruleSetId}/rules/{ruleId}",
+          "promptTemplates/{templateId}",
+          "modelPolicies/{policyId}",
+          "organizations/{organizationId}",
+          "organizations/{organizationId}/members/{uid}",
+          "organizations/{organizationId}/sites/{siteId}",
+          "users/{uid}",
+          "users/{uid}/devices/{deviceId}",
+          "users/{uid}/preferences/{preferenceId}",
+          "users/{uid}/notifications/{notificationId}",
+          "users/{uid}/trainingProgress/{moduleId}",
+          "users/{uid}/wellbeingCheckIns/{checkInId}",
+          "users/{uid}/privateSupportRequests/{requestId}",
+          "users/{uid}/privateSupportRequests/{requestId}/messages/{messageId}",
+          "users/{uid}/privateSupportRequests/{requestId}/referrals/{referralId}",
+          "users/{uid}/privateMediaAssets/{assetId}",
+          "users/{uid}/consents/{consentId}",
+          "users/{uid}/dataSubjectRequests/{requestId}",
+          "users/{uid}/emergencySessions/{sessionId}",
+          "households/{householdId}",
+          "households/{householdId}/members/{uid}",
+          "households/{householdId}/invitations/{invitationId}",
+          "households/{householdId}/settings/{settingsId}",
+          "households/{householdId}/organizationLinks/{linkId}",
+          "households/{householdId}/accessGrants/{grantId}",
+          "households/{householdId}/threads/{threadId}",
+          "households/{householdId}/threads/{threadId}/messages/{messageId}",
+          "households/{householdId}/serviceReferrals/{referralId}",
+          "households/{householdId}/mediaAssets/{assetId}",
+          "households/{householdId}/careRecipients/{careRecipientId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/assignments/{caregiverUid}",
+          "households/{householdId}/careRecipients/{careRecipientId}/carePlans/{carePlanId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/observations/{observationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/steps/{stepId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/confirmations/{confirmationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/tasks/{taskId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/taskEvents/{taskEventId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/medications/{medicationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/medicationEvents/{eventId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/measurements/{measurementId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/incidents/{incidentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/handovers/{handoverId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/appointments/{appointmentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/documents/{documentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/reports/{reportId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/alerts/{alertId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/dailySummaries/{dateKey}",
+          "households/{householdId}/careRecipients/{careRecipientId}/weeklySummaries/{weekKey}",
+          "processingJobs/{jobId}",
+          "aiRuns/{runId}",
+          "notificationOutbox/{messageId}",
+          "idempotencyKeys/{keyHash}",
+          "auditEvents/{auditId}",
+          "scheduledWork/{workId}",
+          "migrations/{migrationId}",
+          "pilotStudies/{studyId}",
+          "pilotStudies/{studyId}/sites/{siteId}",
+          "pilotStudies/{studyId}/participants/{participantId}",
+          "pilotStudies/{studyId}/sessions/{sessionId}",
+          "pilotStudies/{studyId}/feedback/{feedbackId}",
+          "pilotStudies/{studyId}/metricSnapshots/{snapshotId}"
+        ],
+        "breakingChanges": [],
+        "migrationNotes": [
+          "Initial comprehensive Kalinga schema. Operational collections are created on first write."
+        ],
+        "active": true
+      }
+    },
+    {
+      "path": "appConfig/current",
+      "data": {
+        "minimumAppVersion": "0.1.0",
+        "recommendedAppVersion": "0.1.0",
+        "maintenanceMode": false,
+        "defaultLocale": "en",
+        "supportedLocaleCodes": [
+          "zh-TW",
+          "en",
+          "id",
+          "vi",
+          "fil",
+          "ceb"
+        ],
+        "supportEmail": null,
+        "privacyPolicyVersion": "draft-1",
+        "termsVersion": "draft-1",
+        "maxVoiceSeconds": 60,
+        "maxUploadBytes": 10485760,
+        "offlinePhrasebookVersion": "1.0.0",
+        "serviceDirectoryVersion": "1.0.0",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/zh-TW",
+      "data": {
+        "localeCode": "zh-TW",
+        "displayNameEnglish": "Traditional Chinese",
+        "displayNameNative": "繁體中文",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": true,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": true,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": "en",
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/en",
+      "data": {
+        "localeCode": "en",
+        "displayNameEnglish": "English",
+        "displayNameNative": "English",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": true,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": true,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": null,
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/id",
+      "data": {
+        "localeCode": "id",
+        "displayNameEnglish": "Indonesian",
+        "displayNameNative": "Bahasa Indonesia",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": true,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": true,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": "en",
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/vi",
+      "data": {
+        "localeCode": "vi",
+        "displayNameEnglish": "Vietnamese",
+        "displayNameNative": "Tiếng Việt",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": true,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": true,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": "en",
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/fil",
+      "data": {
+        "localeCode": "fil",
+        "displayNameEnglish": "Filipino/Tagalog",
+        "displayNameNative": "Filipino",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": true,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": true,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": "en",
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "supportedLocales/ceb",
+      "data": {
+        "localeCode": "ceb",
+        "displayNameEnglish": "Cebuano/Bisaya",
+        "displayNameNative": "Cebuano / Bisaya",
+        "enabled": true,
+        "interfaceSupported": true,
+        "speechToTextSupported": true,
+        "textToSpeechSupported": false,
+        "onlineTranslationSupported": true,
+        "offlineTranslationSupported": false,
+        "offlinePhrasebookSupported": true,
+        "fallbackLocale": "en",
+        "notes": "Provider support must be re-verified before production launch.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/110",
+      "data": {
+        "serviceId": "110",
+        "officialName": "Police emergency",
+        "shortName": "110",
+        "category": "police",
+        "phoneNumber": "110",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Police emergency"
+        },
+        "eligibilityNotes": {},
+        "emergency": true,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 1,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/119",
+      "data": {
+        "serviceId": "119",
+        "officialName": "Fire and emergency medical services",
+        "shortName": "119",
+        "category": "fireMedicalEmergency",
+        "phoneNumber": "119",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Fire and emergency medical services"
+        },
+        "eligibilityNotes": {},
+        "emergency": true,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 2,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/113",
+      "data": {
+        "serviceId": "113",
+        "officialName": "Protection hotline",
+        "shortName": "113",
+        "category": "protection",
+        "phoneNumber": "113",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Protection hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": true,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 3,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/1955",
+      "data": {
+        "serviceId": "1955",
+        "officialName": "Labor consultation and complaint hotline",
+        "shortName": "1955",
+        "category": "labor",
+        "phoneNumber": "1955",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Labor consultation and complaint hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 4,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/1966",
+      "data": {
+        "serviceId": "1966",
+        "officialName": "Long-term care hotline",
+        "shortName": "1966",
+        "category": "longTermCare",
+        "phoneNumber": "1966",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Long-term care hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 5,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/1990",
+      "data": {
+        "serviceId": "1990",
+        "officialName": "Foreigners in Taiwan hotline",
+        "shortName": "1990",
+        "category": "generalForeignerSupport",
+        "phoneNumber": "1990",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Verify on the official government source before production use."
+        },
+        "localizedDescriptions": {
+          "en": "Foreigners in Taiwan hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 6,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "featureFlags/closedLoopInstructions",
+      "data": {
+        "enabled": true,
+        "description": "Translation plus teach-back confirmation for important instructions.",
+        "allowedRoles": [
+          "householdAdmin",
+          "family",
+          "caregiver",
+          "careCoordinator",
+          "clinician"
+        ],
+        "allowedPilotStudyIds": [],
+        "percentageRollout": 100,
+        "startsAt": null,
+        "endsAt": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "featureFlags/privateWorkerSupport",
+      "data": {
+        "enabled": true,
+        "description": "Private caregiver support area that is not visible to household members by default.",
+        "allowedRoles": [
+          "caregiver"
+        ],
+        "allowedPilotStudyIds": [],
+        "percentageRollout": 100,
+        "startsAt": null,
+        "endsAt": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "featureFlags/aiDiagnosis",
+      "data": {
+        "enabled": false,
+        "description": "Intentionally disabled. Kalinga does not diagnose or prescribe.",
+        "allowedRoles": [],
+        "allowedPilotStudyIds": [],
+        "percentageRollout": 0,
+        "startsAt": null,
+        "endsAt": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0",
+      "data": {
+        "name": "Kalinga Core Service Phrasebook",
+        "version": "1.0.0",
+        "supportedLocales": [
+          "zh-TW",
+          "en",
+          "id",
+          "vi",
+          "fil",
+          "ceb"
+        ],
+        "status": "draft",
+        "reviewedBy": null,
+        "reviewedAt": null,
+        "effectiveFrom": null,
+        "supersedesId": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/call-119",
+      "data": {
+        "category": "fireMedicalEmergency",
+        "scenarioKey": "call119",
+        "localizedText": {
+          "en": "I need emergency medical help. My address is shown on this screen.",
+          "zh-TW": "我需要緊急醫療協助。我的地址顯示在這個畫面上。"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 1,
+        "status": "draft",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/contact-1955",
+      "data": {
+        "category": "labor",
+        "scenarioKey": "contact1955",
+        "localizedText": {
+          "en": "I need labor consultation or interpretation assistance.",
+          "zh-TW": "我需要勞動諮詢或口譯協助。"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "1955",
+        "requiresImmediateCall": false,
+        "displayOrder": 2,
+        "status": "draft",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "terminologyGlossaries/care-1.0.0",
+      "data": {
+        "name": "Kalinga Care Terminology",
+        "sourceLocales": [
+          "zh-TW",
+          "en",
+          "id",
+          "vi",
+          "fil",
+          "ceb"
+        ],
+        "targetLocales": [
+          "zh-TW",
+          "en",
+          "id",
+          "vi",
+          "fil",
+          "ceb"
+        ],
+        "version": "1.0.0",
+        "status": "draft",
+        "reviewedBy": null,
+        "reviewedAt": null,
+        "effectiveFrom": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0",
+      "data": {
+        "name": "User-confirmed public service routing",
+        "version": "1.0.0",
+        "status": "draft",
+        "supportedLocales": [
+          "zh-TW",
+          "en",
+          "id",
+          "vi",
+          "fil",
+          "ceb"
+        ],
+        "reviewedBy": null,
+        "reviewedAt": null,
+        "effectiveFrom": null,
+        "supersedesId": null,
+        "scope": "serviceRouting",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/medical-emergency",
+      "data": {
+        "ruleKey": "medical-emergency",
+        "category": "fireMedicalEmergency",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "119",
+        "messageKey": "route.medical-emergency",
+        "urgency": "emergency",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 1,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/police-emergency",
+      "data": {
+        "ruleKey": "police-emergency",
+        "category": "police",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "110",
+        "messageKey": "route.police-emergency",
+        "urgency": "emergency",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 2,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/protection-help",
+      "data": {
+        "ruleKey": "protection-help",
+        "category": "protection",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "113",
+        "messageKey": "route.protection-help",
+        "urgency": "urgent",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 3,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/labor-help",
+      "data": {
+        "ruleKey": "labor-help",
+        "category": "labor",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "1955",
+        "messageKey": "route.labor-help",
+        "urgency": "attention",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 4,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/long-term-care-help",
+      "data": {
+        "ruleKey": "long-term-care-help",
+        "category": "longTermCare",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "1966",
+        "messageKey": "route.long-term-care-help",
+        "urgency": "information",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 5,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "safetyRuleSets/service-routing-1.0.0/rules/foreigner-support",
+      "data": {
+        "ruleKey": "foreigner-support",
+        "category": "generalForeignerSupport",
+        "inputMode": "userSelected",
+        "triggerPatterns": {},
+        "requiredStructuredFields": [],
+        "recommendedServiceId": "1990",
+        "messageKey": "route.foreigner-support",
+        "urgency": "information",
+        "requiresUserConfirmation": true,
+        "active": true,
+        "displayOrder": 6,
+        "notes": "Routing only; does not diagnose or confirm agency receipt.",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    }
+  ]
+}

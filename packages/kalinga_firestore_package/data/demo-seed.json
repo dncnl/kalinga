@@ -1,0 +1,230 @@
+{
+  "formatVersion": "1.0.0",
+  "description": "Fictional emulator/demo data. Do not import into production.",
+  "documents": [
+    {
+      "path": "users/demo-caregiver",
+      "data": {
+        "uid": "demo-caregiver",
+        "displayName": "Ana Demo",
+        "avatarAssetId": null,
+        "emailNormalized": "caregiver@example.invalid",
+        "phoneE164": null,
+        "preferredLanguage": "id",
+        "additionalLanguages": [
+          "en"
+        ],
+        "preferredInputMode": "voice",
+        "timezone": "Asia/Taipei",
+        "accountStatus": "active",
+        "onboardingCompleted": true,
+        "termsVersionAccepted": "draft-1",
+        "privacyVersionAccepted": "draft-1",
+        "lastActiveAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-seed"
+      }
+    },
+    {
+      "path": "users/demo-family",
+      "data": {
+        "uid": "demo-family",
+        "displayName": "David Chen Demo",
+        "avatarAssetId": null,
+        "emailNormalized": "family@example.invalid",
+        "phoneE164": null,
+        "preferredLanguage": "zh-TW",
+        "additionalLanguages": [
+          "en"
+        ],
+        "preferredInputMode": "mixed",
+        "timezone": "Asia/Taipei",
+        "accountStatus": "active",
+        "onboardingCompleted": true,
+        "termsVersionAccepted": "draft-1",
+        "privacyVersionAccepted": "draft-1",
+        "lastActiveAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-seed"
+      }
+    },
+    {
+      "path": "households/demo-household",
+      "data": {
+        "name": "Demo Chen Household",
+        "timezone": "Asia/Taipei",
+        "defaultLocale": "zh-TW",
+        "status": "active",
+        "createdByUid": "demo-family",
+        "primaryFamilyContactUid": "demo-family",
+        "organizationLinkIds": [],
+        "privacyPolicyVersion": "draft-1",
+        "consentModel": "individual",
+        "dataRegion": null,
+        "archivedAt": null,
+        "legalHold": false,
+        "retentionUntil": null,
+        "deletedAt": null,
+        "deletedBy": null,
+        "deletionReason": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-family",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-family"
+      }
+    },
+    {
+      "path": "households/demo-household/members/demo-caregiver",
+      "data": {
+        "uid": "demo-caregiver",
+        "role": "caregiver",
+        "status": "active",
+        "permissions": {
+          "viewSharedCareRecords": true,
+          "createObservations": true
+        },
+        "careRecipientIds": [
+          "demo-recipient"
+        ],
+        "joinedAt": {
+          "__type": "serverTimestamp"
+        },
+        "invitedByUid": "demo-family",
+        "removedAt": null,
+        "displayNameSnapshot": "Ana Demo",
+        "preferredLanguageSnapshot": "id",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-family",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-family"
+      }
+    },
+    {
+      "path": "households/demo-household/members/demo-family",
+      "data": {
+        "uid": "demo-family",
+        "role": "householdAdmin",
+        "status": "active",
+        "permissions": {
+          "viewSharedCareRecords": true,
+          "createInstructions": true,
+          "manageMembers": true
+        },
+        "careRecipientIds": [
+          "demo-recipient"
+        ],
+        "joinedAt": {
+          "__type": "serverTimestamp"
+        },
+        "invitedByUid": null,
+        "removedAt": null,
+        "displayNameSnapshot": "David Chen Demo",
+        "preferredLanguageSnapshot": "zh-TW",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-family",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-family"
+      }
+    },
+    {
+      "path": "households/demo-household/careRecipients/demo-recipient",
+      "data": {
+        "displayName": "Mrs. Chen Demo",
+        "preferredName": "Grandma Chen",
+        "birthDate": null,
+        "sex": "female",
+        "photoAssetId": null,
+        "preferredLanguages": [
+          "zh-TW"
+        ],
+        "communicationNotes": "Demo data only.",
+        "careProfile": {
+          "mobilitySupport": "one-person assistance"
+        },
+        "emergencyContacts": [
+          {
+            "name": "David Chen Demo",
+            "relationship": "son",
+            "phoneNumber": "0000000000"
+          }
+        ],
+        "primaryCaregiverUid": "demo-caregiver",
+        "primaryFamilyContactUid": "demo-family",
+        "status": "active",
+        "externalIdentifiers": {},
+        "clinicalDisclaimerAcknowledged": true,
+        "legalHold": false,
+        "retentionUntil": null,
+        "deletedAt": null,
+        "deletedBy": null,
+        "deletionReason": null,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-family",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-family"
+      }
+    },
+    {
+      "path": "households/demo-household/careRecipients/demo-recipient/assignments/demo-caregiver",
+      "data": {
+        "caregiverUid": "demo-caregiver",
+        "startsAt": {
+          "__type": "serverTimestamp"
+        },
+        "endsAt": null,
+        "status": "active",
+        "scopes": [
+          "observations",
+          "instructions",
+          "tasks",
+          "medications",
+          "measurements",
+          "sharedTimeline"
+        ],
+        "scheduleNotes": "Demo only",
+        "assignedByUid": "demo-family",
+        "temporary": false,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "demo-family",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "demo-family"
+      }
+    }
+  ]
+}

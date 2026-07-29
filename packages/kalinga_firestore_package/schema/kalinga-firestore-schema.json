@@ -1,0 +1,2531 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kalinga Cloud Firestore Data Model",
+  "version": "1.0.0",
+  "generatedFor": "Kalinga: AI Care Companion for Migrant Caregivers",
+  "database": {
+    "engine": "Google Cloud Firestore (Native mode)",
+    "authentication": "Firebase Authentication",
+    "server": "Node.js/Express with Firebase Admin SDK",
+    "storage": "Cloud Storage for Firebase",
+    "notifications": "Firebase Cloud Messaging",
+    "writeArchitecture": "All sensitive domain writes go through the authenticated Node.js API. Client SDK access is read-only unless explicitly relaxed later."
+  },
+  "conventions": {
+    "timestamps": "Firestore Timestamp, stored in UTC; render using household/user timezone.",
+    "documentReferences": "Store canonical Firestore paths as strings unless Admin SDK DocumentReference is required server-side.",
+    "localeMaps": "Use BCP-47 locale codes as map keys.",
+    "money": "Not currently modeled. If added, store integer minor units plus ISO 4217 currency code.",
+    "medicalSafety": "AI does not diagnose, prescribe, or infer dosage from pill appearance. Critical instructions require human confirmation.",
+    "privateSupportBoundary": "Worker support data lives under users/{uid} and is not readable by household members by default.",
+    "serverTimestamps": "createdAt/updatedAt are server-generated; never trust client timestamps for authorization or ordering.",
+    "idempotency": "All offline/retry-capable mutation endpoints accept an idempotency key.",
+    "softDeletion": "Sensitive records are soft-deleted first and purged by retention policy where legally permitted."
+  },
+  "sharedTypes": {
+    "TranslationValue": {
+      "text": "string",
+      "provider": "string|null",
+      "model": "string|null",
+      "generatedAt": "timestamp|null",
+      "reviewedByUser": "boolean",
+      "reviewedByUid": "uid|null",
+      "reviewedAt": "timestamp|null",
+      "sourceHash": "string|null"
+    }
+  },
+  "mixins": {
+    "audit": {
+      "createdAt": "timestamp",
+      "createdBy": "uid|string",
+      "updatedAt": "timestamp",
+      "updatedBy": "uid|string"
+    },
+    "softDelete": {
+      "deletedAt": "timestamp|null",
+      "deletedBy": "uid|string|null",
+      "deletionReason": "string|null"
+    },
+    "retention": {
+      "retentionUntil": "timestamp|null",
+      "legalHold": "boolean"
+    },
+    "sync": {
+      "clientGeneratedId": "string|null",
+      "clientCreatedAt": "timestamp|null",
+      "lastModifiedByDeviceId": "string|null",
+      "version": "integer>=1",
+      "syncState": "server|synced|conflict"
+    },
+    "localizedText": {
+      "originalLanguage": "localeCode",
+      "originalText": "string",
+      "translations": "map<localeCode, TranslationValue>"
+    }
+  },
+  "enums": {
+    "LocaleCode": [
+      "zh-TW",
+      "en",
+      "id",
+      "vi",
+      "fil",
+      "ceb"
+    ],
+    "HouseholdRole": [
+      "householdAdmin",
+      "family",
+      "caregiver",
+      "careCoordinator",
+      "clinician",
+      "agencyStaff"
+    ],
+    "MembershipStatus": [
+      "invited",
+      "active",
+      "suspended",
+      "removed"
+    ],
+    "Visibility": [
+      "privateToAuthor",
+      "selectedUsers",
+      "household",
+      "careTeam"
+    ],
+    "RecordStatus": [
+      "draft",
+      "processing",
+      "ready",
+      "shared",
+      "archived",
+      "cancelled"
+    ],
+    "Urgency": [
+      "none",
+      "information",
+      "attention",
+      "urgent",
+      "emergency"
+    ],
+    "ServiceCategory": [
+      "police",
+      "fireMedicalEmergency",
+      "protection",
+      "labor",
+      "longTermCare",
+      "generalForeignerSupport",
+      "dementiaSupport",
+      "caregiverSupport",
+      "occupationalInjury"
+    ],
+    "SupportCategory": [
+      "salary",
+      "rest",
+      "healthcareAccess",
+      "injury",
+      "harassment",
+      "unsafeWork",
+      "documentRetention",
+      "interpretation",
+      "contract",
+      "immigration",
+      "other"
+    ],
+    "ObservationCategory": [
+      "appetite",
+      "hydration",
+      "sleep",
+      "mood",
+      "behavior",
+      "mobility",
+      "pain",
+      "elimination",
+      "medication",
+      "vitalSigns",
+      "skin",
+      "breathing",
+      "fall",
+      "other"
+    ],
+    "InstructionRiskLevel": [
+      "routine",
+      "careSensitive",
+      "highRisk"
+    ],
+    "InstructionStatus": [
+      "draft",
+      "sent",
+      "needsClarification",
+      "confirmed",
+      "completed",
+      "cancelled"
+    ],
+    "TaskCategory": [
+      "medication",
+      "meal",
+      "hydration",
+      "mobility",
+      "hygiene",
+      "measurement",
+      "appointment",
+      "exercise",
+      "repositioning",
+      "household",
+      "other"
+    ],
+    "TaskEventStatus": [
+      "pending",
+      "completed",
+      "skipped",
+      "refused",
+      "notAvailable",
+      "needsHelp",
+      "cancelled"
+    ],
+    "MedicationVerificationStatus": [
+      "unverified",
+      "familyConfirmed",
+      "clinicianConfirmed"
+    ],
+    "MedicationEventStatus": [
+      "scheduled",
+      "completed",
+      "skipped",
+      "refused",
+      "notAvailable",
+      "needsClarification",
+      "cancelled"
+    ],
+    "MeasurementType": [
+      "bloodPressure",
+      "temperature",
+      "oxygenSaturation",
+      "bloodGlucose",
+      "heartRate",
+      "weight",
+      "respiratoryRate",
+      "other"
+    ],
+    "MeasurementSource": [
+      "manual",
+      "bluetoothDevice",
+      "ocr",
+      "imported"
+    ],
+    "IncidentCategory": [
+      "fall",
+      "injury",
+      "medicationIssue",
+      "missingPerson",
+      "careConflict",
+      "abuseConcern",
+      "propertyDamage",
+      "other"
+    ],
+    "AlertType": [
+      "observationChange",
+      "instructionMismatch",
+      "missedTask",
+      "missedMedication",
+      "measurementOutsideCarePlan",
+      "supportRequest",
+      "emergency",
+      "system"
+    ],
+    "AIJobType": [
+      "speechToText",
+      "translation",
+      "textToSpeech",
+      "structuredObservation",
+      "instructionExtraction",
+      "ocr",
+      "summary",
+      "routing"
+    ],
+    "AIJobStatus": [
+      "queued",
+      "processing",
+      "completed",
+      "failed",
+      "cancelled",
+      "needsReview"
+    ],
+    "ConsentType": [
+      "terms",
+      "privacyPolicy",
+      "storeAudio",
+      "shareCareData",
+      "shareWithClinician",
+      "shareSupportRequest",
+      "useForResearch",
+      "locationForEmergency"
+    ],
+    "DataSubjectRequestType": [
+      "access",
+      "export",
+      "correction",
+      "deletion",
+      "restrictProcessing",
+      "withdrawConsent"
+    ],
+    "EmergencySessionStatus": [
+      "prepared",
+      "callInitiated",
+      "userReportedConnected",
+      "cancelled"
+    ],
+    "ReferralStatus": [
+      "draft",
+      "prepared",
+      "userInitiated",
+      "submittedByPartner",
+      "acknowledged",
+      "closed",
+      "cancelled"
+    ],
+    "NotificationStatus": [
+      "queued",
+      "sent",
+      "delivered",
+      "failed",
+      "read",
+      "dismissed"
+    ],
+    "AccessPermission": [
+      "view",
+      "comment",
+      "download",
+      "share"
+    ],
+    "PilotParticipantType": [
+      "caregiver",
+      "family",
+      "careCoordinator",
+      "clinician",
+      "observer"
+    ],
+    "TrainingProgressStatus": [
+      "notStarted",
+      "inProgress",
+      "completed",
+      "expired"
+    ],
+    "OrganizationType": [
+      "ngo",
+      "careAgency",
+      "clinic",
+      "hospital",
+      "communityCenter",
+      "government",
+      "researchInstitution",
+      "other"
+    ]
+  },
+  "collections": [
+    {
+      "path": "_schema/{version}",
+      "purpose": "Machine-readable data-model version and migration metadata.",
+      "documentIdStrategy": "semanticVersion",
+      "owner": "platform",
+      "mixins": [],
+      "clientReadPolicy": "authenticated",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "version": "semanticVersion",
+        "database": "cloud-firestore",
+        "releasedAt": "timestamp",
+        "compatibleApiVersions": "array<string>",
+        "collectionManifest": "array<string>",
+        "breakingChanges": "array<string>",
+        "migrationNotes": "array<string>",
+        "active": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "appConfig/{configId}",
+      "purpose": "Runtime-safe configuration exposed to authenticated clients.",
+      "documentIdStrategy": "current",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "authenticated",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "minimumAppVersion": "string",
+        "recommendedAppVersion": "string",
+        "maintenanceMode": "boolean",
+        "defaultLocale": "localeCode",
+        "supportedLocaleCodes": "array<localeCode>",
+        "supportEmail": "string|null",
+        "privacyPolicyVersion": "string",
+        "termsVersion": "string",
+        "maxVoiceSeconds": "integer",
+        "maxUploadBytes": "integer",
+        "offlinePhrasebookVersion": "string",
+        "serviceDirectoryVersion": "string"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "featureFlags/{flagId}",
+      "purpose": "Feature rollout and pilot controls.",
+      "documentIdStrategy": "stableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "authenticated",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "projectPolicy",
+      "fields": {
+        "enabled": "boolean",
+        "description": "string",
+        "allowedRoles": "array<HouseholdRole>",
+        "allowedPilotStudyIds": "array<string>",
+        "percentageRollout": "number[0..100]",
+        "startsAt": "timestamp|null",
+        "endsAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "supportedLocales/{localeCode}",
+      "purpose": "Supported interface, speech, translation, and offline capabilities by locale.",
+      "documentIdStrategy": "localeCode",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "publicRead",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "projectPolicy",
+      "fields": {
+        "localeCode": "localeCode",
+        "displayNameEnglish": "string",
+        "displayNameNative": "string",
+        "enabled": "boolean",
+        "interfaceSupported": "boolean",
+        "speechToTextSupported": "boolean",
+        "textToSpeechSupported": "boolean",
+        "onlineTranslationSupported": "boolean",
+        "offlineTranslationSupported": "boolean",
+        "offlinePhrasebookSupported": "boolean",
+        "fallbackLocale": "localeCode|null",
+        "notes": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "governmentServices/{serviceId}",
+      "purpose": "Verified Taiwan government or public-support service directory.",
+      "documentIdStrategy": "serviceNumberOrStableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "publicRead",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "serviceId": "string",
+        "officialName": "string",
+        "shortName": "string",
+        "category": "ServiceCategory",
+        "phoneNumber": "string|null",
+        "officialUrl": "string|null",
+        "onlineChatUrl": "string|null",
+        "supportedLanguages": "array<localeCode|string>",
+        "operatingHours": "map",
+        "localizedDescriptions": "map<localeCode,string>",
+        "eligibilityNotes": "map<localeCode,string>",
+        "emergency": "boolean",
+        "verificationStatus": "verified|requiresPreLaunchVerification|retired",
+        "lastVerifiedAt": "timestamp|null",
+        "verifiedBy": "string|null",
+        "sourceUrl": "string|null",
+        "displayOrder": "integer",
+        "enabled": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [
+        "enabled ASC, displayOrder ASC",
+        "category ASC, enabled ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "emergencyPhrasebooks/{phrasebookId}",
+      "purpose": "Versioned multilingual phrasebook metadata.",
+      "documentIdStrategy": "stableKeyWithVersion",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "name": "string",
+        "version": "semanticVersion",
+        "supportedLocales": "array<localeCode>",
+        "status": "draft|approved|retired",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null",
+        "effectiveFrom": "timestamp|null",
+        "supersedesId": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}",
+      "purpose": "Verified emergency and service-navigation phrases.",
+      "documentIdStrategy": "stableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "category": "ServiceCategory|string",
+        "scenarioKey": "string",
+        "localizedText": "map<localeCode,string>",
+        "localizedAudioAssetIds": "map<localeCode,string>",
+        "recommendedServiceId": "string|null",
+        "requiresImmediateCall": "boolean",
+        "displayOrder": "integer",
+        "status": "draft|approved|retired"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, displayOrder ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "terminologyGlossaries/{glossaryId}",
+      "purpose": "Versioned care terminology glossary metadata.",
+      "documentIdStrategy": "stableKeyWithVersion",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "name": "string",
+        "sourceLocales": "array<localeCode>",
+        "targetLocales": "array<localeCode>",
+        "version": "semanticVersion",
+        "status": "draft|approved|retired",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null",
+        "effectiveFrom": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "terminologyGlossaries/{glossaryId}/entries/{entryId}",
+      "purpose": "Approved domain terms used by translation services.",
+      "documentIdStrategy": "hashOrStableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "category": "medication|careTask|emergency|governmentService|bodyPart|symptomDescription|rights|other",
+        "sourceLocale": "localeCode",
+        "targetLocale": "localeCode",
+        "sourceTerm": "string",
+        "approvedTranslation": "string",
+        "alternatives": "array<string>",
+        "doNotTranslate": "boolean",
+        "caseSensitive": "boolean",
+        "notes": "string|null",
+        "status": "draft|approved|retired"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, sourceLocale ASC, targetLocale ASC, category ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "knowledgeArticles/{articleId}",
+      "purpose": "Reviewed caregiver micro-training and public-service guidance.",
+      "documentIdStrategy": "slug",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "slug": "string",
+        "category": "string",
+        "title": "map<localeCode,string>",
+        "summary": "map<localeCode,string>",
+        "contentBlocks": "array<map>",
+        "sourceUrls": "array<string>",
+        "audienceRoles": "array<HouseholdRole>",
+        "status": "draft|approved|retired",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null",
+        "version": "integer",
+        "offlineAvailable": "boolean",
+        "tags": "array<string>"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, category ASC",
+        "status ASC, tags ARRAY_CONTAINS"
+      ],
+      "notes": []
+    },
+    {
+      "path": "trainingModules/{moduleId}",
+      "purpose": "Structured multilingual caregiver training module.",
+      "documentIdStrategy": "slug",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "slug": "string",
+        "title": "map<localeCode,string>",
+        "description": "map<localeCode,string>",
+        "category": "string",
+        "audienceRoles": "array<HouseholdRole>",
+        "estimatedMinutes": "integer",
+        "status": "draft|approved|retired",
+        "version": "integer",
+        "prerequisiteModuleIds": "array<string>",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "trainingModules/{moduleId}/lessons/{lessonId}",
+      "purpose": "Ordered lesson content and knowledge checks.",
+      "documentIdStrategy": "stableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "order": "integer",
+        "title": "map<localeCode,string>",
+        "contentBlocks": "array<map>",
+        "quizQuestions": "array<map>",
+        "status": "draft|approved|retired",
+        "estimatedMinutes": "integer"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, order ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "safetyRuleSets/{ruleSetId}",
+      "purpose": "Versioned deterministic routing and escalation rules.",
+      "documentIdStrategy": "stableKeyWithVersion",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "name": "string",
+        "version": "semanticVersion",
+        "status": "draft|approved|retired",
+        "supportedLocales": "array<localeCode>",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null",
+        "effectiveFrom": "timestamp|null",
+        "supersedesId": "string|null",
+        "scope": "serviceRouting|carePlanThresholds|emergencyPhrases"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "safetyRuleSets/{ruleSetId}/rules/{ruleId}",
+      "purpose": "Individual reviewed routing rule; no autonomous diagnosis.",
+      "documentIdStrategy": "stableKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "approvedOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "ruleKey": "string",
+        "category": "ServiceCategory|string",
+        "inputMode": "userSelected|keywordAssist|carePlanThreshold",
+        "triggerPatterns": "map<localeCode,array<string>>",
+        "requiredStructuredFields": "array<string>",
+        "recommendedServiceId": "string|null",
+        "messageKey": "string",
+        "urgency": "Urgency",
+        "requiresUserConfirmation": "boolean",
+        "active": "boolean",
+        "displayOrder": "integer",
+        "notes": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "active ASC, displayOrder ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "promptTemplates/{templateId}",
+      "purpose": "Versioned server-side AI prompt templates.",
+      "documentIdStrategy": "taskAndVersion",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "none",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "task": "AIJobType",
+        "version": "semanticVersion",
+        "template": "string",
+        "inputSchemaVersion": "string",
+        "outputSchemaVersion": "string",
+        "allowedModels": "array<string>",
+        "status": "draft|approved|retired",
+        "reviewedBy": "string|null",
+        "reviewedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "modelPolicies/{policyId}",
+      "purpose": "Allowed AI provider/model usage, fallback, and data-handling policy.",
+      "documentIdStrategy": "taskKey",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "none",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "task": "AIJobType",
+        "primaryProvider": "string",
+        "primaryModel": "string",
+        "fallbacks": "array<map>",
+        "sendAudioToProvider": "boolean",
+        "sendImageToProvider": "boolean",
+        "redactionRequired": "boolean",
+        "maxRetries": "integer",
+        "timeoutMs": "integer",
+        "status": "active|inactive",
+        "effectiveFrom": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "organizations/{organizationId}",
+      "purpose": "Partner NGO, agency, clinic, hospital, community center, or research organization.",
+      "documentIdStrategy": "autoId",
+      "owner": "organization",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "authenticatedLimited",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "name": "string",
+        "type": "OrganizationType",
+        "registrationName": "string|null",
+        "countryCode": "string",
+        "address": "map|null",
+        "contactEmail": "string|null",
+        "contactPhone": "string|null",
+        "website": "string|null",
+        "status": "active|inactive",
+        "dataProcessingAgreementVersion": "string|null",
+        "verifiedAt": "timestamp|null",
+        "verifiedBy": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "organizations/{organizationId}/members/{uid}",
+      "purpose": "Organization role and scoped permissions.",
+      "documentIdStrategy": "uid",
+      "owner": "organization",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "organizationMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "uid": "uid",
+        "role": "organizationAdmin|coordinator|clinician|researcher|viewer",
+        "permissions": "map<string,boolean>",
+        "status": "active|suspended|removed",
+        "joinedAt": "timestamp",
+        "invitedBy": "uid|string"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "organizations/{organizationId}/sites/{siteId}",
+      "purpose": "Physical or virtual pilot/service site.",
+      "documentIdStrategy": "autoId",
+      "owner": "organization",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "organizationMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "name": "string",
+        "type": "office|clinic|hospitalUnit|communityCenter|virtual",
+        "address": "map|null",
+        "timezone": "string",
+        "contactName": "string|null",
+        "contactEmail": "string|null",
+        "contactPhone": "string|null",
+        "status": "active|inactive"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}",
+      "purpose": "User profile linked to Firebase Authentication UID.",
+      "documentIdStrategy": "firebaseAuthUid",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "accountPlusPolicy",
+      "fields": {
+        "uid": "uid",
+        "displayName": "string",
+        "avatarAssetId": "string|null",
+        "emailNormalized": "string|null",
+        "phoneE164": "string|null",
+        "preferredLanguage": "localeCode",
+        "additionalLanguages": "array<localeCode>",
+        "preferredInputMode": "voice|text|mixed",
+        "timezone": "string",
+        "accountStatus": "active|suspended|deleted",
+        "onboardingCompleted": "boolean",
+        "termsVersionAccepted": "string|null",
+        "privacyVersionAccepted": "string|null",
+        "lastActiveAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/devices/{deviceId}",
+      "purpose": "Push-notification and device registration.",
+      "documentIdStrategy": "clientDeviceId",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "untilRevokedPlus30Days",
+      "fields": {
+        "deviceId": "string",
+        "platform": "android|ios|web",
+        "fcmToken": "string",
+        "appVersion": "string",
+        "osVersion": "string|null",
+        "locale": "localeCode",
+        "timezone": "string",
+        "notificationsEnabled": "boolean",
+        "lastActiveAt": "timestamp",
+        "revokedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "notificationsEnabled ASC, lastActiveAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/preferences/{preferenceId}",
+      "purpose": "Accessibility, notification, privacy, and interface preferences.",
+      "documentIdStrategy": "stableKey",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "accountPlusPolicy",
+      "fields": {
+        "preferenceId": "accessibility|notifications|privacy|interface",
+        "values": "map",
+        "schemaVersion": "string"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/notifications/{notificationId}",
+      "purpose": "User notification inbox corresponding to FCM delivery.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "180Days",
+      "fields": {
+        "type": "string",
+        "title": "map<localeCode,string>|string",
+        "body": "map<localeCode,string>|string",
+        "deepLink": "string|null",
+        "relatedEntityPath": "string|null",
+        "status": "NotificationStatus",
+        "sentAt": "timestamp|null",
+        "deliveredAt": "timestamp|null",
+        "readAt": "timestamp|null",
+        "expiresAt": "timestamp|null",
+        "priority": "normal|high"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, createdAt DESC",
+        "readAt ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/trainingProgress/{moduleId}",
+      "purpose": "Per-user training progress and assessment results.",
+      "documentIdStrategy": "moduleId",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "accountPlusPolicy",
+      "fields": {
+        "moduleId": "string",
+        "moduleVersion": "integer",
+        "status": "TrainingProgressStatus",
+        "completedLessonIds": "array<string>",
+        "quizAttempts": "array<map>",
+        "startedAt": "timestamp|null",
+        "completedAt": "timestamp|null",
+        "expiresAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/wellbeingCheckIns/{checkInId}",
+      "purpose": "Private caregiver wellbeing check-in, separate from household care records.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "2YearsOrUserDeletion",
+      "fields": {
+        "mood": "integer|null",
+        "fatigue": "integer|null",
+        "painOrInjury": "boolean",
+        "needsHealthcare": "boolean",
+        "needsPrivateSupport": "boolean",
+        "originalLanguage": "localeCode",
+        "note": "string|null",
+        "recommendedServiceIds": "array<string>",
+        "visibility": "privateToAuthor"
+      },
+      "recommendedQueriesAndIndexes": [
+        "createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/privateSupportRequests/{requestId}",
+      "purpose": "Confidential worker-support case preparation and routing.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "selfAndExplicitGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "caseClosurePlus5YearsOrPolicy",
+      "fields": {
+        "category": "SupportCategory",
+        "status": "draft|prepared|userContactedService|referred|closed|cancelled",
+        "originalLanguage": "localeCode",
+        "originalDescription": "string",
+        "translatedSummary": "map<localeCode,string>",
+        "recommendedServiceId": "string|null",
+        "preferredContactMethod": "call|chat|inPerson|none",
+        "consentToShare": "boolean",
+        "sharedWithOrganizationIds": "array<string>",
+        "sharedWithUserIds": "array<uid>",
+        "incidentDate": "timestamp|null",
+        "locationText": "string|null",
+        "safetyConcern": "boolean",
+        "lastActivityAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, lastActivityAt DESC",
+        "category ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/privateSupportRequests/{requestId}/messages/{messageId}",
+      "purpose": "Confidential messages or case notes within a support request.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete"
+      ],
+      "clientReadPolicy": "selfAndExplicitGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "parentPolicy",
+      "fields": {
+        "senderType": "user|supportPartner|system",
+        "senderUid": "uid|null",
+        "senderOrganizationId": "string|null",
+        "originalLanguage": "localeCode",
+        "originalText": "string",
+        "translations": "map<localeCode,TranslationValue>",
+        "mediaAssetIds": "array<string>",
+        "visibility": "privateToAuthor|sharedWithGrantees",
+        "sentAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/privateSupportRequests/{requestId}/referrals/{referralId}",
+      "purpose": "User-consented handoff to a public service or partner organization.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete"
+      ],
+      "clientReadPolicy": "selfAndExplicitGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "parentPolicy",
+      "fields": {
+        "serviceId": "string|null",
+        "organizationId": "string|null",
+        "status": "ReferralStatus",
+        "preparedSummary": "map<localeCode,string>",
+        "consentRecordId": "string",
+        "initiatedAt": "timestamp|null",
+        "acknowledgedAt": "timestamp|null",
+        "closedAt": "timestamp|null",
+        "externalReference": "string|null",
+        "notes": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/privateMediaAssets/{assetId}",
+      "purpose": "Metadata for confidential audio, image, or document files.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "selfAndExplicitGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "linkedEntityPolicy",
+      "fields": {
+        "storagePath": "string",
+        "mediaType": "audio|image|document",
+        "mimeType": "string",
+        "sizeBytes": "integer",
+        "sha256": "string",
+        "linkedEntityPath": "string",
+        "encryptionKeyVersion": "string|null",
+        "uploadStatus": "pending|uploaded|scanned|rejected",
+        "virusScanStatus": "pending|clean|blocked",
+        "consentId": "string|null",
+        "capturedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/consents/{consentId}",
+      "purpose": "Versioned informed consent and withdrawal record.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "legalRequirement",
+      "fields": {
+        "consentType": "ConsentType",
+        "policyVersion": "string",
+        "granted": "boolean",
+        "grantedAt": "timestamp|null",
+        "revokedAt": "timestamp|null",
+        "scope": "map",
+        "evidenceHash": "string|null",
+        "locale": "localeCode",
+        "capturedBy": "self|partner|system"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/dataSubjectRequests/{requestId}",
+      "purpose": "Personal-data access, export, correction, deletion, restriction, or consent withdrawal request.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "legalRequirement",
+      "fields": {
+        "type": "DataSubjectRequestType",
+        "status": "submitted|underReview|fulfilled|partiallyFulfilled|rejected|cancelled",
+        "scopePaths": "array<string>",
+        "requestNote": "string|null",
+        "resolutionNote": "string|null",
+        "submittedAt": "timestamp",
+        "completedAt": "timestamp|null",
+        "handledBy": "uid|string|null",
+        "exportAssetId": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "users/{uid}/emergencySessions/{sessionId}",
+      "purpose": "User-initiated emergency preparation/call session without claiming agency receipt.",
+      "documentIdStrategy": "autoId",
+      "owner": "user",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "selfOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "90DaysUnlessIncidentLinked",
+      "fields": {
+        "serviceId": "string",
+        "careRecipientPath": "string|null",
+        "emergencyType": "string",
+        "userSelectedFacts": "map",
+        "preparedPhrase": "map<localeCode,string>",
+        "locationShared": "boolean",
+        "locationSnapshot": "map|null",
+        "callInitiatedAt": "timestamp|null",
+        "userReportedConnected": "boolean",
+        "status": "EmergencySessionStatus",
+        "endedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}",
+      "purpose": "Shared care household boundary and primary authorization unit.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "membersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "name": "string",
+        "timezone": "string",
+        "defaultLocale": "localeCode",
+        "status": "active|paused|archived",
+        "createdByUid": "uid",
+        "primaryFamilyContactUid": "uid|null",
+        "organizationLinkIds": "array<string>",
+        "privacyPolicyVersion": "string",
+        "consentModel": "individual|householdWithIndividualOverrides",
+        "dataRegion": "string|null",
+        "archivedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/members/{uid}",
+      "purpose": "Household membership, role, and scoped permissions.",
+      "documentIdStrategy": "uid",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "membersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "uid": "uid",
+        "role": "HouseholdRole",
+        "status": "MembershipStatus",
+        "permissions": "map<string,boolean>",
+        "careRecipientIds": "array<string>",
+        "joinedAt": "timestamp|null",
+        "invitedByUid": "uid|null",
+        "removedAt": "timestamp|null",
+        "displayNameSnapshot": "string",
+        "preferredLanguageSnapshot": "localeCode"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, role ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/invitations/{invitationId}",
+      "purpose": "Secure time-limited invitation to a household.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "householdAdminsOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "1Year",
+      "fields": {
+        "intendedRole": "HouseholdRole",
+        "invitedEmailNormalized": "string|null",
+        "invitedPhoneE164": "string|null",
+        "tokenHash": "string",
+        "expiresAt": "timestamp",
+        "status": "pending|accepted|expired|revoked",
+        "acceptedByUid": "uid|null",
+        "acceptedAt": "timestamp|null",
+        "permissionsTemplate": "map<string,boolean>"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, expiresAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/settings/{settingsId}",
+      "purpose": "Household-level care, privacy, notification, and display settings.",
+      "documentIdStrategy": "stableKey",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "membersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "settingsId": "care|privacy|notifications|display",
+        "values": "map",
+        "schemaVersion": "string"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/organizationLinks/{linkId}",
+      "purpose": "Consent-aware relationship between a household and partner organization.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "membersAndOrganizationGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "organizationId": "string",
+        "siteId": "string|null",
+        "relationshipType": "careAgency|clinic|ngoSupport|pilot|other",
+        "status": "pending|active|suspended|ended",
+        "permissions": "map<string,boolean>",
+        "consentRecordIds": "array<string>",
+        "startsAt": "timestamp",
+        "endsAt": "timestamp|null",
+        "linkedByUid": "uid"
+      },
+      "recommendedQueriesAndIndexes": [
+        "organizationId ASC, status ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/accessGrants/{grantId}",
+      "purpose": "Explicit, revocable, time-limited access to care resources.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "grantPartiesAndAdmins",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "grantedByUid": "uid",
+        "grantedToUid": "uid|null",
+        "grantedToOrganizationId": "string|null",
+        "resourcePath": "string",
+        "permissions": "array<AccessPermission>",
+        "purpose": "string",
+        "consentRecordIds": "array<string>",
+        "startsAt": "timestamp",
+        "expiresAt": "timestamp|null",
+        "revokedAt": "timestamp|null",
+        "status": "active|expired|revoked"
+      },
+      "recommendedQueriesAndIndexes": [
+        "grantedToUid ASC, status ASC, expiresAt ASC",
+        "grantedToOrganizationId ASC, status ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/threads/{threadId}",
+      "purpose": "Structured clarification or care communication thread.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "participantsAndAuthorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "linkedEntityPolicy",
+      "fields": {
+        "careRecipientId": "string|null",
+        "linkedEntityPath": "string|null",
+        "subject": "string",
+        "participantUids": "array<uid>",
+        "participantOrganizationIds": "array<string>",
+        "status": "open|resolved|archived",
+        "lastMessageAt": "timestamp|null",
+        "createdByUid": "uid",
+        "visibility": "Visibility"
+      },
+      "recommendedQueriesAndIndexes": [
+        "participantUids ARRAY_CONTAINS, status ASC, lastMessageAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/threads/{threadId}/messages/{messageId}",
+      "purpose": "Original and translated clarification message.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "sync"
+      ],
+      "clientReadPolicy": "threadParticipants",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "parentPolicy",
+      "fields": {
+        "senderUid": "uid",
+        "originalLanguage": "localeCode",
+        "originalText": "string",
+        "translations": "map<localeCode,TranslationValue>",
+        "mediaAssetIds": "array<string>",
+        "messageType": "text|voice|system|clarification",
+        "sentAt": "timestamp",
+        "editedAt": "timestamp|null",
+        "deletedForEveryoneAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "sentAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/serviceReferrals/{referralId}",
+      "purpose": "Household-consented referral to 1966, dementia support, clinic, or other service.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "authorizedMembersAndGrantees",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "caseClosurePlus5YearsOrPolicy",
+      "fields": {
+        "careRecipientId": "string|null",
+        "serviceId": "string|null",
+        "organizationId": "string|null",
+        "status": "ReferralStatus",
+        "preparedSummary": "map<localeCode,string>",
+        "consentRecordIds": "array<string>",
+        "initiatedByUid": "uid",
+        "initiatedAt": "timestamp|null",
+        "acknowledgedAt": "timestamp|null",
+        "closedAt": "timestamp|null",
+        "externalReference": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, createdAt DESC",
+        "serviceId ASC, status ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/mediaAssets/{assetId}",
+      "purpose": "Metadata for shared household care files.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "linkedEntityPolicy",
+      "fields": {
+        "storagePath": "string",
+        "mediaType": "audio|image|document",
+        "mimeType": "string",
+        "sizeBytes": "integer",
+        "sha256": "string",
+        "ownerUid": "uid",
+        "careRecipientId": "string|null",
+        "linkedEntityPath": "string",
+        "visibility": "Visibility",
+        "allowedUserIds": "array<uid>",
+        "uploadStatus": "pending|uploaded|scanned|rejected",
+        "virusScanStatus": "pending|clean|blocked",
+        "capturedAt": "timestamp|null",
+        "consentRecordIds": "array<string>"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}",
+      "purpose": "Older adult or other person receiving care.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "displayName": "string",
+        "preferredName": "string|null",
+        "birthDate": "date|null",
+        "sex": "female|male|other|undisclosed",
+        "photoAssetId": "string|null",
+        "preferredLanguages": "array<localeCode|string>",
+        "communicationNotes": "string|null",
+        "careProfile": "map",
+        "emergencyContacts": "array<map>",
+        "primaryCaregiverUid": "uid|null",
+        "primaryFamilyContactUid": "uid|null",
+        "status": "active|inactive|deceased|archived",
+        "externalIdentifiers": "map<string,string>",
+        "clinicalDisclaimerAcknowledged": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/assignments/{caregiverUid}",
+      "purpose": "Active or historical caregiver assignment and scopes.",
+      "documentIdStrategy": "caregiverUid",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "caregiverUid": "uid",
+        "startsAt": "timestamp",
+        "endsAt": "timestamp|null",
+        "status": "active|paused|ended",
+        "scopes": "array<string>",
+        "scheduleNotes": "string|null",
+        "assignedByUid": "uid",
+        "temporary": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, startsAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/carePlans/{carePlanId}",
+      "purpose": "Versioned source of truth for routine, baseline, responsibilities, and agreed actions.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefiniteVersionHistory",
+      "fields": {
+        "title": "string",
+        "version": "integer",
+        "status": "draft|active|superseded|cancelled",
+        "effectiveFrom": "timestamp",
+        "effectiveUntil": "timestamp|null",
+        "baseline": "map",
+        "goals": "array<string>",
+        "routine": "array<map>",
+        "approvedActions": "array<map>",
+        "contactsAndEscalation": "array<map>",
+        "dietaryNotes": "string|null",
+        "mobilityNotes": "string|null",
+        "communicationNotes": "string|null",
+        "medicationPlanReference": "string|null",
+        "approvedByUids": "array<uid>",
+        "approvedAt": "timestamp|null",
+        "supersedesPlanId": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, effectiveFrom DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/observations/{observationId}",
+      "purpose": "Caregiver-authored structured observation with original voice/text preserved.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "authorOrAuthorizedVisibility",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "authorUid": "uid",
+        "inputMode": "voice|text|structuredForm",
+        "originalLanguage": "localeCode",
+        "originalText": "string",
+        "originalAudioAssetId": "string|null",
+        "translations": "map<localeCode,TranslationValue>",
+        "structuredObservation": "map",
+        "categories": "array<ObservationCategory>",
+        "comparisonToUsual": "better|same|worse|unknown|null",
+        "observedAt": "timestamp",
+        "safetyAssessment": "map",
+        "visibility": "Visibility",
+        "allowedUserIds": "array<uid>",
+        "allowedOrganizationIds": "array<string>",
+        "status": "RecordStatus",
+        "reviewedByAuthor": "boolean",
+        "reviewedAt": "timestamp|null",
+        "threadId": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, observedAt DESC",
+        "categories ARRAY_CONTAINS, observedAt DESC",
+        "authorUid ASC, observedAt DESC",
+        "visibility ASC, observedAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}",
+      "purpose": "Family or professional care instruction with translation and teach-back.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "assignedCaregiverOrAuthorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "createdByUid": "uid",
+        "assignedCaregiverUids": "array<uid>",
+        "sourceType": "family|careCoordinator|clinician|carePlan",
+        "originalLanguage": "localeCode",
+        "originalText": "string",
+        "originalAudioAssetId": "string|null",
+        "translations": "map<localeCode,TranslationValue>",
+        "riskLevel": "InstructionRiskLevel",
+        "scheduledAt": "timestamp|null",
+        "recurrenceRule": "string|null",
+        "confirmationRequired": "boolean",
+        "status": "InstructionStatus",
+        "clarificationThreadId": "string|null",
+        "carePlanId": "string|null",
+        "validFrom": "timestamp|null",
+        "validUntil": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "assignedCaregiverUids ARRAY_CONTAINS, status ASC, scheduledAt ASC",
+        "status ASC, scheduledAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/steps/{stepId}",
+      "purpose": "Ordered extracted instruction step.",
+      "documentIdStrategy": "zeroPaddedOrderOrAutoId",
+      "owner": "household",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "parentReaders",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "parentPolicy",
+      "fields": {
+        "order": "integer",
+        "action": "string",
+        "itemName": "string|null",
+        "quantity": "string|null",
+        "timing": "string|null",
+        "condition": "string|null",
+        "safetyNote": "string|null",
+        "escalationRule": "string|null",
+        "criticalFields": "array<string>",
+        "sourceSpan": "string|null",
+        "userConfirmed": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [
+        "order ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/confirmations/{confirmationId}",
+      "purpose": "Teach-back answers and mismatch detection.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "caregiverAndInstructionCreators",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "parentPolicy",
+      "fields": {
+        "caregiverUid": "uid",
+        "attemptNumber": "integer",
+        "questions": "array<map>",
+        "answers": "array<map>",
+        "allCriticalDetailsMatched": "boolean",
+        "mismatchFields": "array<string>",
+        "clarificationRequested": "boolean",
+        "confirmedAt": "timestamp|null",
+        "status": "passed|failed|needsClarification|abandoned"
+      },
+      "recommendedQueriesAndIndexes": [
+        "caregiverUid ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/tasks/{taskId}",
+      "purpose": "Recurring or one-time care task definition.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "relationshipPlusPolicy",
+      "fields": {
+        "title": "string",
+        "description": "string|null",
+        "category": "TaskCategory",
+        "createdByUid": "uid",
+        "assignedToUids": "array<uid>",
+        "carePlanId": "string|null",
+        "instructionId": "string|null",
+        "timezone": "string",
+        "schedule": "map",
+        "nextDueAt": "timestamp|null",
+        "completionRequiresNote": "boolean",
+        "completionRequiresMeasurementType": "MeasurementType|null",
+        "status": "active|paused|completed|cancelled",
+        "startsAt": "timestamp|null",
+        "endsAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "assignedToUids ARRAY_CONTAINS, status ASC, nextDueAt ASC",
+        "status ASC, nextDueAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/taskEvents/{taskEventId}",
+      "purpose": "Materialized scheduled occurrence and caregiver-recorded completion.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "taskId": "string",
+        "scheduledAt": "timestamp",
+        "windowStart": "timestamp|null",
+        "windowEnd": "timestamp|null",
+        "assignedToUids": "array<uid>",
+        "status": "TaskEventStatus",
+        "completedByUid": "uid|null",
+        "completedAt": "timestamp|null",
+        "caregiverNote": "string|null",
+        "relatedObservationId": "string|null",
+        "relatedMeasurementId": "string|null",
+        "idempotencyKey": "string",
+        "generatedBy": "scheduler|manual"
+      },
+      "recommendedQueriesAndIndexes": [
+        "assignedToUids ARRAY_CONTAINS, status ASC, scheduledAt ASC",
+        "taskId ASC, scheduledAt DESC",
+        "status ASC, scheduledAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/medications/{medicationId}",
+      "purpose": "Verified medication instruction and schedule; never inferred solely from pill appearance.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "name": "string",
+        "genericName": "string|null",
+        "strength": "string|null",
+        "dosageText": "string",
+        "route": "string|null",
+        "schedule": "map",
+        "specialInstructions": "string|null",
+        "reason": "string|null",
+        "enteredByUid": "uid",
+        "verifiedByUid": "uid|null",
+        "verificationStatus": "MedicationVerificationStatus",
+        "sourceType": "familyEntry|clinicianDocument|labelOcrDraft",
+        "sourceDocumentAssetId": "string|null",
+        "ocrDraft": "map|null",
+        "startsAt": "timestamp|null",
+        "endsAt": "timestamp|null",
+        "nextDoseAt": "timestamp|null",
+        "status": "active|paused|completed|cancelled"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, nextDoseAt ASC",
+        "verificationStatus ASC, status ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/medicationEvents/{eventId}",
+      "purpose": "Scheduled medication reminder and caregiver-recorded outcome.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "medicationId": "string",
+        "scheduledAt": "timestamp",
+        "windowStart": "timestamp|null",
+        "windowEnd": "timestamp|null",
+        "status": "MedicationEventStatus",
+        "completedByUid": "uid|null",
+        "completedAt": "timestamp|null",
+        "caregiverNote": "string|null",
+        "refusalReason": "string|null",
+        "relatedObservationId": "string|null",
+        "idempotencyKey": "string",
+        "generatedBy": "scheduler|manual"
+      },
+      "recommendedQueriesAndIndexes": [
+        "medicationId ASC, scheduledAt DESC",
+        "status ASC, scheduledAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/measurements/{measurementId}",
+      "purpose": "Structured vital sign or other measurement.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "recordedByUid": "uid",
+        "type": "MeasurementType",
+        "values": "map<string,number>",
+        "unit": "string",
+        "measuredAt": "timestamp",
+        "source": "MeasurementSource",
+        "deviceRegistrationId": "string|null",
+        "sourceMediaAssetId": "string|null",
+        "verificationStatus": "userConfirmed|deviceImported|unverified",
+        "carePlanId": "string|null",
+        "thresholdEvaluation": "map|null",
+        "note": "string|null",
+        "idempotencyKey": "string"
+      },
+      "recommendedQueriesAndIndexes": [
+        "type ASC, measuredAt DESC",
+        "recordedByUid ASC, measuredAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/incidents/{incidentId}",
+      "purpose": "Non-routine safety or care incident report.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention",
+        "sync"
+      ],
+      "clientReadPolicy": "authorOrAuthorizedVisibility",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "reportedByUid": "uid",
+        "category": "IncidentCategory",
+        "occurredAt": "timestamp",
+        "originalLanguage": "localeCode",
+        "description": "string",
+        "translations": "map<localeCode,TranslationValue>",
+        "immediateActionTaken": "string|null",
+        "injurySuspected": "boolean",
+        "emergencySessionId": "string|null",
+        "relatedObservationIds": "array<string>",
+        "mediaAssetIds": "array<string>",
+        "visibility": "Visibility",
+        "allowedUserIds": "array<uid>",
+        "status": "draft|submitted|reviewed|closed",
+        "reviewedByUid": "uid|null",
+        "closedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, occurredAt DESC",
+        "category ASC, occurredAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/handovers/{handoverId}",
+      "purpose": "Structured shift/day handover for continuity of care.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "periodStart": "timestamp",
+        "periodEnd": "timestamp",
+        "outgoingCaregiverUid": "uid",
+        "incomingCaregiverUid": "uid|null",
+        "summary": "map<localeCode,string>",
+        "completedTaskEventIds": "array<string>",
+        "unresolvedTaskEventIds": "array<string>",
+        "importantObservationIds": "array<string>",
+        "incidentIds": "array<string>",
+        "upcomingTaskEventIds": "array<string>",
+        "acknowledgedByUid": "uid|null",
+        "acknowledgedAt": "timestamp|null",
+        "status": "draft|shared|acknowledged|archived"
+      },
+      "recommendedQueriesAndIndexes": [
+        "periodEnd DESC",
+        "status ASC, periodEnd DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/appointments/{appointmentId}",
+      "purpose": "Medical, long-term-care, or administrative appointment.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedMembers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "5YearsOrPolicy",
+      "fields": {
+        "title": "string",
+        "type": "medical|longTermCare|government|other",
+        "startsAt": "timestamp",
+        "endsAt": "timestamp|null",
+        "timezone": "string",
+        "location": "map|null",
+        "providerName": "string|null",
+        "organizationId": "string|null",
+        "attendeeUids": "array<uid>",
+        "preparationChecklist": "array<map>",
+        "relatedReportId": "string|null",
+        "status": "scheduled|completed|cancelled|missed"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, startsAt ASC",
+        "attendeeUids ARRAY_CONTAINS, startsAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/documents/{documentId}",
+      "purpose": "Care-plan, prescription-label, appointment, or identity-support document metadata.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedVisibility",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "documentTypePolicy",
+      "fields": {
+        "title": "string",
+        "documentType": "carePlan|medicationLabel|clinicInstruction|appointment|governmentForm|other",
+        "mediaAssetId": "string",
+        "uploadedByUid": "uid",
+        "issuedAt": "timestamp|null",
+        "expiresAt": "timestamp|null",
+        "issuerName": "string|null",
+        "visibility": "Visibility",
+        "allowedUserIds": "array<uid>",
+        "verificationStatus": "unverified|reviewed|verified",
+        "verifiedByUid": "uid|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "documentType ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/reports/{reportId}",
+      "purpose": "Generated bilingual care report for family, coordinator, clinic, or export.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "authorizedVisibility",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "reportType": "daily|weekly|appointment|handover|custom",
+        "periodStart": "timestamp",
+        "periodEnd": "timestamp",
+        "generatedByUid": "uid",
+        "sourceEntityPaths": "array<string>",
+        "localizedContent": "map<localeCode,map>",
+        "pdfAssetId": "string|null",
+        "shareTokenHash": "string|null",
+        "shareTokenExpiresAt": "timestamp|null",
+        "visibility": "Visibility",
+        "allowedUserIds": "array<uid>",
+        "status": "generating|ready|failed|expired"
+      },
+      "recommendedQueriesAndIndexes": [
+        "reportType ASC, periodEnd DESC",
+        "status ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/alerts/{alertId}",
+      "purpose": "Persistent alert state used with push notifications.",
+      "documentIdStrategy": "autoId",
+      "owner": "household",
+      "mixins": [
+        "audit",
+        "softDelete",
+        "retention"
+      ],
+      "clientReadPolicy": "recipientsAndAuthorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "2Years",
+      "fields": {
+        "type": "AlertType",
+        "severity": "Urgency",
+        "sourceEntityPath": "string",
+        "recipientUids": "array<uid>",
+        "title": "map<localeCode,string>|string",
+        "message": "map<localeCode,string>|string",
+        "recommendedServiceId": "string|null",
+        "status": "active|acknowledged|resolved|dismissed",
+        "acknowledgedByUid": "uid|null",
+        "acknowledgedAt": "timestamp|null",
+        "resolvedByUid": "uid|null",
+        "resolvedAt": "timestamp|null",
+        "expiresAt": "timestamp|null",
+        "deduplicationKey": "string"
+      },
+      "recommendedQueriesAndIndexes": [
+        "recipientUids ARRAY_CONTAINS, status ASC, createdAt DESC",
+        "status ASC, severity ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/dailySummaries/{dateKey}",
+      "purpose": "Denormalized daily dashboard summary generated by backend.",
+      "documentIdStrategy": "YYYY-MM-DD",
+      "owner": "household",
+      "mixins": [],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "dateKey": "YYYY-MM-DD",
+        "timezone": "string",
+        "taskCounts": "map",
+        "medicationCounts": "map",
+        "observationCounts": "map",
+        "measurementHighlights": "array<map>",
+        "activeAlertCount": "integer",
+        "unresolvedConcernCount": "integer",
+        "summaryText": "map<localeCode,string>",
+        "generatedFromVersion": "integer",
+        "generatedAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "households/{householdId}/careRecipients/{careRecipientId}/weeklySummaries/{weekKey}",
+      "purpose": "Denormalized weekly trend summary generated by backend.",
+      "documentIdStrategy": "ISOWeek",
+      "owner": "household",
+      "mixins": [],
+      "clientReadPolicy": "authorizedCareTeam",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "weekKey": "ISOYear-Www",
+        "periodStart": "timestamp",
+        "periodEnd": "timestamp",
+        "timezone": "string",
+        "trendSeries": "map",
+        "notableChanges": "array<map>",
+        "activeAlertCount": "integer",
+        "summaryText": "map<localeCode,string>",
+        "generatedFromVersion": "integer",
+        "generatedAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "processingJobs/{jobId}",
+      "purpose": "Asynchronous AI/OCR/translation/TTS processing queue.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "requesterStatusOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "90Days",
+      "fields": {
+        "task": "AIJobType",
+        "sourceEntityPath": "string",
+        "requestedByUid": "uid",
+        "householdId": "string|null",
+        "careRecipientId": "string|null",
+        "status": "AIJobStatus",
+        "priority": "low|normal|high",
+        "attemptCount": "integer",
+        "maxAttempts": "integer",
+        "nextRetryAt": "timestamp|null",
+        "leaseOwner": "string|null",
+        "leaseExpiresAt": "timestamp|null",
+        "errorCode": "string|null",
+        "errorMessage": "string|null",
+        "inputAssetIds": "array<string>",
+        "outputEntityPath": "string|null",
+        "idempotencyKey": "string",
+        "queuedAt": "timestamp",
+        "startedAt": "timestamp|null",
+        "completedAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, priority DESC, queuedAt ASC",
+        "status ASC, nextRetryAt ASC",
+        "requestedByUid ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "aiRuns/{runId}",
+      "purpose": "Traceability record for each AI provider invocation and human review.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "entityAuthorizedUsersLimited",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "2YearsOrPolicy",
+      "fields": {
+        "jobId": "string",
+        "task": "AIJobType",
+        "provider": "string",
+        "model": "string",
+        "modelVersion": "string|null",
+        "promptTemplateId": "string|null",
+        "promptVersion": "string|null",
+        "glossaryId": "string|null",
+        "glossaryVersion": "string|null",
+        "safetyRuleSetId": "string|null",
+        "safetyRuleVersion": "string|null",
+        "inputEntityPath": "string",
+        "outputEntityPath": "string|null",
+        "inputHash": "string",
+        "outputHash": "string|null",
+        "structuredOutput": "map|null",
+        "confidence": "number|null",
+        "redactionApplied": "boolean",
+        "userReviewed": "boolean",
+        "reviewedByUid": "uid|null",
+        "reviewOutcome": "accepted|edited|rejected|null",
+        "providerRequestId": "string|null",
+        "latencyMs": "integer|null",
+        "tokenUsage": "map|null",
+        "status": "success|failed|needsReview",
+        "errorCode": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "jobId ASC, createdAt ASC",
+        "inputEntityPath ASC, createdAt DESC",
+        "status ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "notificationOutbox/{messageId}",
+      "purpose": "Backend transactional notification queue and delivery audit.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "none",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "90Days",
+      "fields": {
+        "recipientUid": "uid",
+        "deviceIds": "array<string>",
+        "notificationType": "string",
+        "payload": "map",
+        "deepLink": "string|null",
+        "status": "NotificationStatus",
+        "attemptCount": "integer",
+        "nextRetryAt": "timestamp|null",
+        "sentAt": "timestamp|null",
+        "providerMessageIds": "array<string>",
+        "errorCode": "string|null",
+        "deduplicationKey": "string",
+        "expiresAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, nextRetryAt ASC",
+        "recipientUid ASC, createdAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "idempotencyKeys/{keyHash}",
+      "purpose": "Prevents duplicate API side effects from retries and offline sync.",
+      "documentIdStrategy": "sha256",
+      "owner": "platform",
+      "mixins": [],
+      "clientReadPolicy": "none",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7DaysTo90Days",
+      "fields": {
+        "keyHash": "string",
+        "scope": "string",
+        "ownerUid": "uid",
+        "requestHash": "string",
+        "responseStatus": "integer|null",
+        "responseEntityPath": "string|null",
+        "lockedUntil": "timestamp|null",
+        "completedAt": "timestamp|null",
+        "expiresAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [
+        "expiresAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "auditEvents/{auditId}",
+      "purpose": "Append-only security and data-access audit trail.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [],
+      "clientReadPolicy": "platformAdminOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "7YearsOrPolicy",
+      "fields": {
+        "actorUid": "uid|string",
+        "actorType": "user|server|admin|organization",
+        "action": "create|read|update|share|download|delete|login|consent|export",
+        "entityPath": "string",
+        "householdId": "string|null",
+        "careRecipientId": "string|null",
+        "organizationId": "string|null",
+        "purpose": "string|null",
+        "requestId": "string|null",
+        "ipHash": "string|null",
+        "deviceId": "string|null",
+        "result": "allowed|denied|failed",
+        "metadata": "map",
+        "occurredAt": "timestamp",
+        "retentionUntil": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [
+        "householdId ASC, occurredAt DESC",
+        "actorUid ASC, occurredAt DESC",
+        "entityPath ASC, occurredAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "scheduledWork/{workId}",
+      "purpose": "Recurring task/medication event generation and summary jobs.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "none",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "1Year",
+      "fields": {
+        "workType": "generateTaskEvents|generateMedicationEvents|dailySummary|weeklySummary|expireGrants|cleanupRetention",
+        "targetPath": "string",
+        "schedule": "map",
+        "nextRunAt": "timestamp",
+        "lastRunAt": "timestamp|null",
+        "status": "active|paused|completed|failed",
+        "leaseOwner": "string|null",
+        "leaseExpiresAt": "timestamp|null",
+        "attemptCount": "integer",
+        "errorCode": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, nextRunAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "migrations/{migrationId}",
+      "purpose": "Applied database migration record.",
+      "documentIdStrategy": "autoId",
+      "owner": "platform",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "platformAdminOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "indefinite",
+      "fields": {
+        "fromVersion": "semanticVersion",
+        "toVersion": "semanticVersion",
+        "description": "string",
+        "status": "planned|running|completed|failed",
+        "startedAt": "timestamp|null",
+        "completedAt": "timestamp|null",
+        "appliedBy": "string|null",
+        "checkpoint": "map|null",
+        "error": "string|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}",
+      "purpose": "Pilot validation project and governance metadata.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit",
+        "retention"
+      ],
+      "clientReadPolicy": "pilotMembersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "name": "string",
+        "description": "string",
+        "status": "planning|recruiting|active|analysis|completed|cancelled",
+        "leadOrganizationId": "string",
+        "partnerOrganizationIds": "array<string>",
+        "protocolVersion": "string",
+        "consentVersion": "string",
+        "startsAt": "timestamp|null",
+        "endsAt": "timestamp|null",
+        "targetMetrics": "array<string>",
+        "ethicsReviewReference": "string|null",
+        "dataRetentionUntil": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}/sites/{siteId}",
+      "purpose": "Pilot site configuration.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "pilotMembersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "organizationId": "string",
+        "organizationSiteId": "string|null",
+        "name": "string",
+        "status": "planned|active|completed",
+        "coordinatorUids": "array<uid>",
+        "targetParticipantCount": "integer",
+        "startsAt": "timestamp|null",
+        "endsAt": "timestamp|null"
+      },
+      "recommendedQueriesAndIndexes": [],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}/participants/{participantId}",
+      "purpose": "Pseudonymous pilot enrollment without unnecessary identity duplication.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "pilotAuthorizedResearchers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "participantCode": "string",
+        "userUid": "uid|null",
+        "participantType": "PilotParticipantType",
+        "siteId": "string|null",
+        "consentRecordPath": "string",
+        "enrolledAt": "timestamp",
+        "withdrawnAt": "timestamp|null",
+        "status": "active|completed|withdrawn",
+        "cohort": "string|null",
+        "demographicsMinimal": "map|null"
+      },
+      "recommendedQueriesAndIndexes": [
+        "status ASC, participantType ASC",
+        "siteId ASC, status ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}/sessions/{sessionId}",
+      "purpose": "Usability or field-validation session.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "pilotAuthorizedResearchers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "participantId": "string",
+        "sessionType": "onboarding|taskTest|interview|fieldUse|followUp",
+        "facilitatorUid": "uid|null",
+        "startedAt": "timestamp",
+        "endedAt": "timestamp|null",
+        "scenarioKeys": "array<string>",
+        "completionMetrics": "map",
+        "notesDeidentified": "string|null",
+        "recordingAssetId": "string|null",
+        "status": "scheduled|completed|cancelled"
+      },
+      "recommendedQueriesAndIndexes": [
+        "participantId ASC, startedAt DESC",
+        "status ASC, startedAt ASC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}/feedback/{feedbackId}",
+      "purpose": "Structured participant feedback and usability measures.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "pilotAuthorizedResearchers",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "participantId": "string",
+        "sessionId": "string|null",
+        "instrument": "SUS|UMUXLite|custom",
+        "responses": "map",
+        "score": "number|null",
+        "freeTextDeidentified": "string|null",
+        "locale": "localeCode",
+        "submittedAt": "timestamp"
+      },
+      "recommendedQueriesAndIndexes": [
+        "participantId ASC, submittedAt DESC",
+        "instrument ASC, submittedAt DESC"
+      ],
+      "notes": []
+    },
+    {
+      "path": "pilotStudies/{studyId}/metricSnapshots/{snapshotId}",
+      "purpose": "Aggregated pilot metrics without raw personal content.",
+      "documentIdStrategy": "autoId",
+      "owner": "pilot",
+      "mixins": [
+        "audit"
+      ],
+      "clientReadPolicy": "pilotMembersOnly",
+      "clientWritePolicy": "serverOnly",
+      "retentionPolicy": "studyPolicy",
+      "fields": {
+        "periodStart": "timestamp",
+        "periodEnd": "timestamp",
+        "metricValues": "map<string,number>",
+        "denominators": "map<string,number>",
+        "calculationVersion": "string",
+        "generatedAt": "timestamp",
+        "generatedBy": "string",
+        "suppressionApplied": "boolean"
+      },
+      "recommendedQueriesAndIndexes": [
+        "periodEnd DESC"
+      ],
+      "notes": []
+    }
+  ]
+}
