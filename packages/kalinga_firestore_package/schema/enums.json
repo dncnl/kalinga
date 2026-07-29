@@ -1,0 +1,258 @@
+{
+  "LocaleCode": [
+    "zh-TW",
+    "en",
+    "id",
+    "vi",
+    "fil",
+    "ceb"
+  ],
+  "HouseholdRole": [
+    "householdAdmin",
+    "family",
+    "caregiver",
+    "careCoordinator",
+    "clinician",
+    "agencyStaff"
+  ],
+  "MembershipStatus": [
+    "invited",
+    "active",
+    "suspended",
+    "removed"
+  ],
+  "Visibility": [
+    "privateToAuthor",
+    "selectedUsers",
+    "household",
+    "careTeam"
+  ],
+  "RecordStatus": [
+    "draft",
+    "processing",
+    "ready",
+    "shared",
+    "archived",
+    "cancelled"
+  ],
+  "Urgency": [
+    "none",
+    "information",
+    "attention",
+    "urgent",
+    "emergency"
+  ],
+  "ServiceCategory": [
+    "police",
+    "fireMedicalEmergency",
+    "protection",
+    "labor",
+    "longTermCare",
+    "generalForeignerSupport",
+    "dementiaSupport",
+    "caregiverSupport",
+    "occupationalInjury"
+  ],
+  "SupportCategory": [
+    "salary",
+    "rest",
+    "healthcareAccess",
+    "injury",
+    "harassment",
+    "unsafeWork",
+    "documentRetention",
+    "interpretation",
+    "contract",
+    "immigration",
+    "other"
+  ],
+  "ObservationCategory": [
+    "appetite",
+    "hydration",
+    "sleep",
+    "mood",
+    "behavior",
+    "mobility",
+    "pain",
+    "elimination",
+    "medication",
+    "vitalSigns",
+    "skin",
+    "breathing",
+    "fall",
+    "other"
+  ],
+  "InstructionRiskLevel": [
+    "routine",
+    "careSensitive",
+    "highRisk"
+  ],
+  "InstructionStatus": [
+    "draft",
+    "sent",
+    "needsClarification",
+    "confirmed",
+    "completed",
+    "cancelled"
+  ],
+  "TaskCategory": [
+    "medication",
+    "meal",
+    "hydration",
+    "mobility",
+    "hygiene",
+    "measurement",
+    "appointment",
+    "exercise",
+    "repositioning",
+    "household",
+    "other"
+  ],
+  "TaskEventStatus": [
+    "pending",
+    "completed",
+    "skipped",
+    "refused",
+    "notAvailable",
+    "needsHelp",
+    "cancelled"
+  ],
+  "MedicationVerificationStatus": [
+    "unverified",
+    "familyConfirmed",
+    "clinicianConfirmed"
+  ],
+  "MedicationEventStatus": [
+    "scheduled",
+    "completed",
+    "skipped",
+    "refused",
+    "notAvailable",
+    "needsClarification",
+    "cancelled"
+  ],
+  "MeasurementType": [
+    "bloodPressure",
+    "temperature",
+    "oxygenSaturation",
+    "bloodGlucose",
+    "heartRate",
+    "weight",
+    "respiratoryRate",
+    "other"
+  ],
+  "MeasurementSource": [
+    "manual",
+    "bluetoothDevice",
+    "ocr",
+    "imported"
+  ],
+  "IncidentCategory": [
+    "fall",
+    "injury",
+    "medicationIssue",
+    "missingPerson",
+    "careConflict",
+    "abuseConcern",
+    "propertyDamage",
+    "other"
+  ],
+  "AlertType": [
+    "observationChange",
+    "instructionMismatch",
+    "missedTask",
+    "missedMedication",
+    "measurementOutsideCarePlan",
+    "supportRequest",
+    "emergency",
+    "system"
+  ],
+  "AIJobType": [
+    "speechToText",
+    "translation",
+    "textToSpeech",
+    "structuredObservation",
+    "instructionExtraction",
+    "ocr",
+    "summary",
+    "routing"
+  ],
+  "AIJobStatus": [
+    "queued",
+    "processing",
+    "completed",
+    "failed",
+    "cancelled",
+    "needsReview"
+  ],
+  "ConsentType": [
+    "terms",
+    "privacyPolicy",
+    "storeAudio",
+    "shareCareData",
+    "shareWithClinician",
+    "shareSupportRequest",
+    "useForResearch",
+    "locationForEmergency"
+  ],
+  "DataSubjectRequestType": [
+    "access",
+    "export",
+    "correction",
+    "deletion",
+    "restrictProcessing",
+    "withdrawConsent"
+  ],
+  "EmergencySessionStatus": [
+    "prepared",
+    "callInitiated",
+    "userReportedConnected",
+    "cancelled"
+  ],
+  "ReferralStatus": [
+    "draft",
+    "prepared",
+    "userInitiated",
+    "submittedByPartner",
+    "acknowledged",
+    "closed",
+    "cancelled"
+  ],
+  "NotificationStatus": [
+    "queued",
+    "sent",
+    "delivered",
+    "failed",
+    "read",
+    "dismissed"
+  ],
+  "AccessPermission": [
+    "view",
+    "comment",
+    "download",
+    "share"
+  ],
+  "PilotParticipantType": [
+    "caregiver",
+    "family",
+    "careCoordinator",
+    "clinician",
+    "observer"
+  ],
+  "TrainingProgressStatus": [
+    "notStarted",
+    "inProgress",
+    "completed",
+    "expired"
+  ],
+  "OrganizationType": [
+    "ngo",
+    "careAgency",
+    "clinic",
+    "hospital",
+    "communityCenter",
+    "government",
+    "researchInstitution",
+    "other"
+  ]
+}

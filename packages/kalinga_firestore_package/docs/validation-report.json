@@ -1,0 +1,10 @@
+{
+  "validatedAt": "2026-07-29T13:05:18.261Z",
+  "schemaVersion": "1.0.0",
+  "collectionPatterns": 75,
+  "referenceDocuments": 28,
+  "demoDocuments": 7,
+  "compositeIndexes": 72,
+  "fieldIndexOverrides": 36,
+  "checks": "PASS"
+}
