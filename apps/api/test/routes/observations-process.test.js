@@ -122,6 +122,28 @@ test('runs the full pipeline and saves the observation for an assigned caregiver
   );
 });
 
+test('returns 422 when no speech is detected, without calling translate/extract', async (t) => {
+  mockAuthedUser(t, 'caregiver-1');
+  mockAssignment(t, { status: 'active' });
+  t.mock.method(firebase, 'getBucket', () => ({ name: 'bucket' }));
+  t.mock.method(speechClient, 'recognize', async () => [{ results: [] }]);
+
+  let translateCalled = false;
+  t.mock.method(translateClient, 'translateText', async () => {
+    translateCalled = true;
+    return [{ translations: [{ translatedText: '' }] }];
+  });
+
+  const res = await request(app)
+    .post(ROUTE)
+    .set('Authorization', 'Bearer token')
+    .send({ storagePath: 'p', locale: 'fil' });
+
+  assert.equal(res.status, 422);
+  assert.equal(res.body.error, 'No speech detected in recording');
+  assert.equal(translateCalled, false);
+});
+
 test('returns 502 when the pipeline throws', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
   t.mock.method(firebase.db, 'doc', () => ({

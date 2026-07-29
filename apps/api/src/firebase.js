@@ -27,10 +27,15 @@ const app = initializeApp({
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// app.options.projectId is NOT reliably populated just because the project
+// id was embedded in the service-account cert — confirmed empirically (see
+// PLAN.md). This is the one source of truth other modules should use.
+const projectId = serviceAccount?.project_id || process.env.GOOGLE_CLOUD_PROJECT;
+
 // Lazy: only resolves (and requires FIREBASE_STORAGE_BUCKET) when a route
 // actually needs Storage, so the server can still boot without it.
 function getBucket() {
   return getStorage(app).bucket();
 }
 
-module.exports = { app, db, auth, getBucket, googleAuthOptions };
+module.exports = { app, db, auth, getBucket, googleAuthOptions, projectId };

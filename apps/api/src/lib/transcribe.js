@@ -27,6 +27,10 @@ async function transcribeAudio({ gcsUri, locale }) {
     config: {
       languageCode,
       enableAutomaticPunctuation: true,
+      // Auto-detection from the container header is unreliable in
+      // practice — be explicit. Caller must upload LINEAR16-in-WAV.
+      encoding: 'LINEAR16',
+      sampleRateHertz: 16000,
     },
   });
 

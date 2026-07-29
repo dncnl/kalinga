@@ -73,8 +73,9 @@ caregiver and family can see.
       question) but structurally correct. Cloud Translation and
       Speech-to-Text both confirmed live too (APIs enabled + IAM granted on
       `kalinga-bc97f`) — Translation returned a real result, STT correctly
-      reached "file not found" on a fake path (i.e. got past auth). Only
-      thing NOT yet tested live is a real audio file end to end.)
+      reached "file not found" on a fake path (i.e. got past auth). Full
+      real-audio end-to-end test done later, see the Step 5 update below —
+      found and fixed 3 more real bugs in the process.)
 - [x] Daily/weekly trend rollup
       (`POST .../rollup/daily` and `POST .../rollup/weekly`, same
       auth+assignment gating as the other routes. Daily summary counts
@@ -90,9 +91,10 @@ caregiver and family can see.
       smoke test against real Firestore.)
 - [x] Mic button records & uploads
       (`prototype_log_page.dart` — hold-to-record using the `record`
-      package (AAC/.m4a), then `ObservationService.submitVoiceLog()` runs
-      the full pipeline: upload-url → PUT to signed URL → process. Shows a
-      snackbar with the result categories, or the error, when done.
+      package (WAV/LINEAR16, 16kHz mono — see update below for why not
+      AAC/m4a), then `ObservationService.submitVoiceLog()` runs the full
+      pipeline: upload-url → PUT to signed URL → process. Shows a snackbar
+      with the result categories, or the error, when done.
       **Stopgaps, not real infra:**
         - No sign-in screen exists anywhere in the app yet — uses Firebase
           anonymous auth just to get a real ID token for `requireAuth`.
@@ -112,9 +114,59 @@ caregiver and family can see.
       `kotlin { compilerOptions {...} }` DSL without ever applying the
       `org.jetbrains.kotlin.android` plugin — added the missing
       `id("org.jetbrains.kotlin.android")`.
-      NOT yet tested end-to-end on device: build now gets past the Kotlin
-      error but stops at a missing `android/app/google-services.json` —
-      no Android app has been registered for this project in the Firebase
-      console yet (package name would be `com.kalinga.mobile`).)
+      Update: `google-services.json` + `lib/firebase_options.dart` now
+      generated via `flutterfire configure` (both gitignored — client
+      Firebase config, not secret, but following the repo's existing
+      convention). `main.dart` now calls
+      `Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)`
+      instead of the old bare/bypassed call. Enabled Anonymous auth in the
+      Firebase console (required for the stopgap auth to work at all).
+
+      **Ran a full live end-to-end test** (record → upload-url → PUT →
+      process, using a real spoken WAV generated via Windows SAPI TTS
+      standing in for a mic recording, and a real anonymous ID token) and
+      found + fixed three real bugs along the way, not just config gaps:
+        1. Google Speech-to-Text does not support AAC/M4A at all (only
+           LINEAR16, FLAC, MULAW, AMR, OGG_OPUS, WEBM_OPUS, MP3) — would
+           have failed on every real recording. Switched mobile recording
+           from `AudioEncoder.aacLc` to `AudioEncoder.wav`
+           (16kHz/mono, matching `transcribe.js`'s now-explicit
+           `encoding`/`sampleRateHertz` — relying on auto-detection from
+           the container header was unreliable).
+        2. The `/process` route fed STT's transcript straight into Cloud
+           Translation with no empty-string guard — a no-speech-detected
+           recording (silence, or just noise) would 502 instead of
+           failing cleanly. Added a check: empty transcript now returns
+           422 "No speech detected in recording" before translate/extract
+           ever run.
+        3. `firebase.app.options.projectId` is `undefined` at runtime —
+           the Admin SDK doesn't surface the project id back onto
+           `.options` just because it was embedded in the service-account
+           cert. `translateToMandarin()` was silently building
+           `parent: "projects/undefined/locations/global"`, which Google
+           rejected as `PERMISSION_DENIED` (not a clearer error). Added a
+           `projectId` export to `firebase.js` (derived from the same
+           service-account JSON already used for `googleAuthOptions()`)
+           as the one source of truth; the route now uses that instead.
+
+      After those fixes, the full pipeline ran correctly against real
+      Firebase: real transcript in, correct Mandarin translation out,
+      correct categories/comparisonToUsual, safety assessment appropriately
+      flagged, `ObservationDocument` saved.
+
+      **New data-quality issue found, not yet fixed:** in that live run,
+      `sleepQuality`/`appetiteLevel` both came back `1` (best/max) despite
+      the transcript describing poor sleep and low appetite — the free
+      extraction model inverted the 0-1 scale direction. Since this feeds
+      `trendSeries` directly (Step 4), a bad score here shows up on the
+      chart as "great" when the caregiver said the opposite. Same root
+      cause as the "text-quality is rough" open question above — needs a
+      better model or much more constrained prompting to trust for
+      anything beyond a prototype demo.
+
+      Still not tested: Android on an actual device/emulator (Windows was
+      the fastest path to prove the plumbing works at all); the mobile
+      app's own `submitVoiceLog()` call path end-to-end (this test drove
+      the API directly with a script, not through the Flutter UI).)
 - [ ] Log screen shows real trend
 - [ ] Family view shows real trend

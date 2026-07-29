@@ -25,7 +25,7 @@ class ObservationService {
   /// result (categories, comparisonToUsual, safetyAssessment, etc).
   Future<Map<String, dynamic>> submitVoiceLog(File audioFile) async {
     final token = await _idToken();
-    const contentType = 'audio/m4a';
+    const contentType = 'audio/wav';
 
     final uploadUrlRes = await http.post(
       Uri.parse(

@@ -96,10 +96,17 @@ router.post(
       const gcsUri = `gs://${bucketName}/${storagePath}`;
 
       const { text: transcript } = await transcribeAudio({ gcsUri, locale });
+      if (!transcript.trim()) {
+        return res.status(422).json({
+          error: 'No speech detected in recording',
+          detail: 'Try recording again — speak clearly for at least a couple seconds.',
+        });
+      }
+
       const { text: translatedText } = await translateToMandarin({
         text: transcript,
         sourceLocale: locale,
-        projectId: firebase.app.options.projectId,
+        projectId: firebase.projectId,
       });
       const extraction = await extractObservation({ transcript });
 

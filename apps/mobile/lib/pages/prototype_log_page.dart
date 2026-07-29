@@ -35,9 +35,15 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     if (!await _recorder.hasPermission()) return;
 
     final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.wav';
 
-    await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+    // WAV/LINEAR16, not AAC: Google Cloud Speech-to-Text (apps/api) doesn't
+    // support AAC/M4A at all. Sample rate must match transcribe.js's
+    // sampleRateHertz.
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+      path: path,
+    );
     setState(() => _isHolding = true);
   }
 
