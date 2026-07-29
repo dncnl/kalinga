@@ -16,15 +16,39 @@ This package is based on the current architecture shown in the project document:
 
 | File | Purpose |
 |---|---|
-| `schema/kalinga-firestore-schema.json` | Authoritative machine-readable catalog of 75 document-path patterns, field contracts, ownership, retention, and queries |
+| `schema/kalinga-firestore-schema.json` | Authoritative machine-readable catalog of all 75 document-path patterns, field contracts, ownership, retention, and queries |
+| `schema/contracts-manifest.json` | Exhaustive mapping from each authoritative path to its TypeScript interface and collection/document path helpers |
+| `schema/domain-types.ts` | Generated complete TypeScript document contracts for all 75 patterns |
+| `schema/firestore-paths.ts` | Generated complete document and collection path helpers for all 75 patterns |
 | `firestore.rules` | Read-only client access with role, assignment, visibility, and private-worker-support boundaries |
 | `firestore.indexes.json` | Composite indexes and exemptions for large text/maps |
 | `storage.rules` | Backend-only sensitive-file access using signed URLs |
 | `data/reference-seed.json` | Importable reference/configuration documents |
 | `data/demo-seed.json` | Optional fictional emulator data; never use in production |
 | `scripts/seed-firestore.mjs` | Idempotent JSON-to-Firestore importer |
-| `scripts/validate-package.mjs` | Structural and safety validation |
+| `scripts/generate-contracts.mjs` | Deterministically generates and checks the complete TypeScript types and path helpers |
+| `scripts/validate-package.mjs` | Full structural, compatibility, generated-contract, seed, index, and security validation |
 | `docs/` | Full data model, ERD, traceability, security, API boundaries, and validation report |
+
+
+## Generated database contracts
+
+`schema/kalinga-firestore-schema.json` remains the source of truth. The TypeScript contracts and path helpers are generated from it and the exhaustive `schema/contracts-manifest.json`.
+
+After changing the authoritative schema or manifest, run:
+
+```bash
+npm run generate:contracts
+npm run validate
+```
+
+CI or reviewers can check for drift without rewriting files:
+
+```bash
+npm run check:contracts
+```
+
+The 1.1.0 validation fails if any authoritative path, document interface, document helper, collection helper, version record, or required read-policy classification is missing.
 
 ## Important Firestore limitation
 
@@ -92,7 +116,7 @@ npx firebase-tools use YOUR_FIREBASE_PROJECT_ID
 npm run validate
 ```
 
-This checks collection-path structure, duplicate documents, seed/schema alignment, required safety records, index coverage, fail-closed rules, and required domain collections.
+This checks the locked set of all 75 document patterns, generated TypeScript interface coverage, document and collection path-helper coverage, seed/schema alignment, schema history, required safety records, index coverage, authenticated-content rules, verified public-service rules, and fail-closed boundaries.
 
 ## 4. Deploy rules and indexes
 
@@ -178,7 +202,7 @@ Before production:
 4. approve the phrasebook, glossary, and rule-set records; and
 5. record reviewer identities and approval timestamps.
 
-The current Security Rules expose approved phrasebooks, glossaries, training content, and safety rule sets only. Platform administrators may inspect drafts.
+The current Security Rules expose approved phrasebooks, glossaries, knowledge articles, training content, and safety-rule-set metadata only to authenticated users. Individual safety rules remain platform-admin-only. Public government-service records must be both verified and enabled; platform administrators may inspect drafts and unverified records.
 
 ## Recommended backend validation
 

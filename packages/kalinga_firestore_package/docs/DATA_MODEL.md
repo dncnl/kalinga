@@ -1,5 +1,5 @@
 # Kalinga Cloud Firestore Data Model
-**Schema version:** 1.0.0  
+**Schema version:** 1.1.0  
 **Database:** Cloud Firestore Native mode  
 **Write model:** sensitive domain writes pass through the authenticated Node.js/Express API; Flutter clients use read-only Firestore access where permitted.
 Firestore is schemaless, so this package expresses the contract through `schema/kalinga-firestore-schema.json`, server validation, Security Rules, indexes, and the import seed. Empty collections are created only when the first document is written.
@@ -17,16 +17,16 @@ Firestore is schemaless, so this package expresses the contract through `schema/
 | `appConfig/{configId}` | Runtime-safe configuration exposed to authenticated clients. | authenticated | serverOnly |
 | `featureFlags/{flagId}` | Feature rollout and pilot controls. | authenticated | serverOnly |
 | `supportedLocales/{localeCode}` | Supported interface, speech, translation, and offline capabilities by locale. | publicRead | serverOnly |
-| `governmentServices/{serviceId}` | Verified Taiwan government or public-support service directory. | publicRead | serverOnly |
-| `emergencyPhrasebooks/{phrasebookId}` | Versioned multilingual phrasebook metadata. | approvedOnly | serverOnly |
-| `emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}` | Verified emergency and service-navigation phrases. | approvedOnly | serverOnly |
-| `terminologyGlossaries/{glossaryId}` | Versioned care terminology glossary metadata. | approvedOnly | serverOnly |
-| `terminologyGlossaries/{glossaryId}/entries/{entryId}` | Approved domain terms used by translation services. | approvedOnly | serverOnly |
-| `knowledgeArticles/{articleId}` | Reviewed caregiver micro-training and public-service guidance. | approvedOnly | serverOnly |
-| `trainingModules/{moduleId}` | Structured multilingual caregiver training module. | approvedOnly | serverOnly |
-| `trainingModules/{moduleId}/lessons/{lessonId}` | Ordered lesson content and knowledge checks. | approvedOnly | serverOnly |
-| `safetyRuleSets/{ruleSetId}` | Versioned deterministic routing and escalation rules. | approvedOnly | serverOnly |
-| `safetyRuleSets/{ruleSetId}/rules/{ruleId}` | Individual reviewed routing rule; no autonomous diagnosis. | approvedOnly | serverOnly |
+| `governmentServices/{serviceId}` | Verified Taiwan government or public-support service directory. | verifiedPublicRead | serverOnly |
+| `emergencyPhrasebooks/{phrasebookId}` | Versioned multilingual phrasebook metadata. | authenticatedApprovedOnly | serverOnly |
+| `emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}` | Verified emergency and service-navigation phrases. | authenticatedApprovedOnly | serverOnly |
+| `terminologyGlossaries/{glossaryId}` | Versioned care terminology glossary metadata. | authenticatedApprovedOnly | serverOnly |
+| `terminologyGlossaries/{glossaryId}/entries/{entryId}` | Approved domain terms used by translation services. | authenticatedApprovedOnly | serverOnly |
+| `knowledgeArticles/{articleId}` | Reviewed caregiver micro-training and public-service guidance. | authenticatedApprovedOnly | serverOnly |
+| `trainingModules/{moduleId}` | Structured multilingual caregiver training module. | authenticatedApprovedOnly | serverOnly |
+| `trainingModules/{moduleId}/lessons/{lessonId}` | Ordered lesson content and knowledge checks. | authenticatedApprovedOnly | serverOnly |
+| `safetyRuleSets/{ruleSetId}` | Versioned deterministic routing and escalation rules. | authenticatedApprovedOnly | serverOnly |
+| `safetyRuleSets/{ruleSetId}/rules/{ruleId}` | Individual reviewed routing rule; no autonomous diagnosis. | platformAdminOnly | serverOnly |
 | `promptTemplates/{templateId}` | Versioned server-side AI prompt templates. | none | serverOnly |
 | `modelPolicies/{policyId}` | Allowed AI provider/model usage, fallback, and data-handling policy. | none | serverOnly |
 

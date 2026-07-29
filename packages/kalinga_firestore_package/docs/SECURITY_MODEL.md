@@ -17,6 +17,15 @@
 - **Partner-scoped:** organization access exists only through an active link and explicit access grant/consent.
 - **Platform-only:** AI prompts, model policies, processing jobs, notification outbox, idempotency locks, migrations, and full audit logs.
 
+
+## Reference-content read policy
+
+- `supportedLocales` is public so onboarding can display language capabilities before sign-in.
+- `governmentServices` is public only when a record is both `verified` and `enabled`; drafts and `requiresPreLaunchVerification` records are not publicly readable.
+- Approved emergency phrasebooks, terminology glossaries, knowledge articles, training modules, lessons, and safety-rule-set metadata require an authenticated user.
+- Individual deterministic safety rules, prompts, and model policies are platform-only/server-side.
+- All reference-content writes remain server-only.
+
 ## Required backend checks
 
 Every domain endpoint must verify: authenticated UID; active account; active household membership; role and permission; recipient assignment when applicable; field-level ownership; consent and visibility; idempotency key; expected document version; retention/deletion state; and audit logging.

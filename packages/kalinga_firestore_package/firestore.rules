@@ -73,8 +73,20 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/organizations/$(organizationId)/members/$(request.auth.uid)).data.status == 'active';
     }
 
-    // Public/reference data. Draft records may still be present; the application must
-    // filter by status and the backend must prevent unapproved content from being used.
+    function canReadApprovedContent(data) {
+      return isPlatformAdmin()
+        || (signedIn() && data.get('status', '') == 'approved');
+    }
+
+    function canReadVerifiedGovernmentService(data) {
+      return isPlatformAdmin()
+        || (data.get('verificationStatus', '') == 'verified'
+          && data.get('enabled', false) == true);
+    }
+
+    // Public/reference data. Only supported locale metadata and verified, enabled
+    // government-service records are readable without authentication. Internal approved
+    // content requires an authenticated user; drafts remain platform-admin-only.
     match /_schema/{document=**} {
       allow read: if signedIn() || isPlatformAdmin();
       allow write: if false;
@@ -91,40 +103,40 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
-    match /governmentServices/{document=**} {
-      allow read: if true;
+    match /governmentServices/{serviceId} {
+      allow read: if canReadVerifiedGovernmentService(resource.data);
       allow write: if false;
     }
     match /emergencyPhrasebooks/{phrasebookId} {
-      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow read: if canReadApprovedContent(resource.data);
       allow write: if false;
       match /phrases/{phraseId} {
-        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow read: if canReadApprovedContent(resource.data);
         allow write: if false;
       }
     }
     match /terminologyGlossaries/{glossaryId} {
-      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow read: if canReadApprovedContent(resource.data);
       allow write: if false;
       match /entries/{entryId} {
-        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow read: if canReadApprovedContent(resource.data);
         allow write: if false;
       }
     }
     match /knowledgeArticles/{articleId} {
-      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow read: if canReadApprovedContent(resource.data);
       allow write: if false;
     }
     match /trainingModules/{moduleId} {
-      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow read: if canReadApprovedContent(resource.data);
       allow write: if false;
       match /lessons/{lessonId} {
-        allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+        allow read: if canReadApprovedContent(resource.data);
         allow write: if false;
       }
     }
     match /safetyRuleSets/{ruleSetId} {
-      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow read: if canReadApprovedContent(resource.data);
       allow write: if false;
       match /rules/{ruleId} {
         allow read: if isPlatformAdmin();

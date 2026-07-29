@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Kalinga Cloud Firestore Data Model",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "generatedFor": "Kalinga: AI Care Companion for Migrant Caregivers",
   "database": {
     "engine": "Google Cloud Firestore (Native mode)",
@@ -431,7 +431,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "publicRead",
+      "clientReadPolicy": "verifiedPublicRead",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -468,7 +468,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -492,7 +492,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -518,7 +518,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -542,7 +542,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -570,7 +570,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -602,7 +602,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -629,7 +629,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -653,7 +653,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "authenticatedApprovedOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {
@@ -678,7 +678,7 @@
       "mixins": [
         "audit"
       ],
-      "clientReadPolicy": "approvedOnly",
+      "clientReadPolicy": "platformAdminOnly",
       "clientWritePolicy": "serverOnly",
       "retentionPolicy": "indefinite",
       "fields": {

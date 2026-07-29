@@ -1,0 +1,74 @@
+{
+  "fromVersion": "1.0.0",
+  "toVersion": "1.1.0",
+  "scope": "database package only",
+  "pathsBefore": 75,
+  "pathsAfter": 75,
+  "pathsRemoved": [],
+  "pathsAdded": [],
+  "fieldsRemoved": {},
+  "fieldsAdded": {},
+  "fieldTypeChanges": {},
+  "readPolicyChanges": [
+    {
+      "path": "governmentServices/{serviceId}",
+      "from": "publicRead",
+      "to": "verifiedPublicRead"
+    },
+    {
+      "path": "emergencyPhrasebooks/{phrasebookId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "terminologyGlossaries/{glossaryId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "terminologyGlossaries/{glossaryId}/entries/{entryId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "knowledgeArticles/{articleId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "trainingModules/{moduleId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "trainingModules/{moduleId}/lessons/{lessonId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "safetyRuleSets/{ruleSetId}",
+      "from": "approvedOnly",
+      "to": "authenticatedApprovedOnly"
+    },
+    {
+      "path": "safetyRuleSets/{ruleSetId}/rules/{ruleId}",
+      "from": "approvedOnly",
+      "to": "platformAdminOnly"
+    }
+  ],
+  "generatedContracts": {
+    "typescriptInterfaces": 75,
+    "documentPathHelpers": 75,
+    "collectionPathHelpers": 75
+  },
+  "dataMigrationRequired": false,
+  "notes": [
+    "No feature, table/collection, path, or field was removed.",
+    "The migration record is a no-op contract/security migration."
+  ]
+}
