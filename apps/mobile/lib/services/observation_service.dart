@@ -70,9 +70,10 @@ class ObservationService {
       throw Exception('Failed to process observation: ${processRes.body}');
     }
 
-    // No scheduler exists yet (see PLAN.md) — trigger the rollup inline so
-    // the chart has something fresh to show right after logging.
-    await _triggerRollup(token);
+    // Trigger rollup in the background — don't await it so the UI
+    // shows "Logged" immediately. The chart updates via Firestore
+    // real-time listener once the rollup finishes.
+    _triggerRollup(token);
 
     return jsonDecode(processRes.body) as Map<String, dynamic>;
   }
@@ -82,26 +83,28 @@ class ObservationService {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     };
-
     final today = dateKeyOf(DateTime.now());
-    await http.post(
-      Uri.parse(
-        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/daily',
-      ),
-      headers: headers,
-      body: jsonEncode({'dateKey': today}),
-    );
-
     final weekStart = currentWeekStartUtc();
-    await http.post(
-      Uri.parse(
-        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/weekly',
+
+    // Run daily and weekly rollup in parallel.
+    await Future.wait([
+      http.post(
+        Uri.parse(
+          '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/daily',
+        ),
+        headers: headers,
+        body: jsonEncode({'dateKey': today}),
       ),
-      headers: headers,
-      body: jsonEncode({
-        'weekKey': currentWeekKey(),
-        'periodStart': weekStart.toIso8601String(),
-      }),
-    );
+      http.post(
+        Uri.parse(
+          '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/weekly',
+        ),
+        headers: headers,
+        body: jsonEncode({
+          'weekKey': currentWeekKey(),
+          'periodStart': weekStart.toIso8601String(),
+        }),
+      ),
+    ]);
   }
 }

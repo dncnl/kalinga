@@ -3,7 +3,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Free-tier model. OpenRouter's free model lineup shifts over time — if this
 // one disappears, check https://openrouter.ai/models?max_price=0 for a
 // current ":free" replacement with tool-calling support.
-const MODEL = 'openai/gpt-oss-20b:free';
+const MODEL = 'google/gemma-4-31b-it:free';
 
 const OBSERVATION_CATEGORIES = [
   'appetite', 'hydration', 'sleep', 'mood', 'behavior', 'mobility', 'pain',
@@ -50,6 +50,7 @@ function normalizeCategories(rawCategories) {
 // Clamps to [0, 1] and drops anything that isn't actually a number — the
 // free model occasionally returns out-of-range or non-numeric junk here.
 function normalizeScore(value) {
+  if (typeof value === 'string') value = parseFloat(value);
   if (typeof value !== 'number' || Number.isNaN(value)) return null;
   return Math.max(0, Math.min(1, value));
 }
@@ -116,48 +117,93 @@ const EXTRACT_TOOL = {
   },
 };
 
-// Takes the caregiver's original-language transcript (not the translation —
-// extraction should work off what they actually said) and pulls out the
-// fields ObservationDocument needs. Uses OpenRouter's free tier; the
-// provider doesn't support forcing tool_choice to a specific function, so
-// this prompts the model to call it and treats "didn't call it" as a
-// (retryable, by the caller) failure rather than silently returning nothing.
+const SYSTEM_PROMPT = `You are a medical data extraction assistant.
+A caregiver recorded a voice note about an elder. Extract the details and output a JSON object matching this exact schema. YOU MUST include all fields:
+{
+  "categories": ["appetite", "hydration", "sleep", "mood", "behavior", "mobility", "pain", "elimination", "medication", "vitalSigns", "skin", "breathing", "fall", "other"],
+  "comparisonToUsual": "better" | "same" | "worse" | "unknown",
+  "structuredObservation": {
+    "summary": "Detailed 2-3 sentence summary covering ALL aspects mentioned in the transcript",
+    "sleep": "Sleep details (if any)",
+    "appetite": "Appetite details (if any)",
+    "mood": "Mood details (if any)",
+    "sleepQuality": 0.5,
+    "appetiteLevel": 0.5,
+    "moodScore": 0.5
+  },
+  "safetyAssessment": {
+    "concernLevel": "none" | "low" | "medium" | "high",
+    "concerns": ["list of concerns"],
+    "recommendFollowUp": false
+  }
+}
+
+CRITICAL INSTRUCTIONS:
+1. You MUST analyze the entire transcript. Do not ignore any part of it.
+2. You MUST output sleepQuality, appetiteLevel, and moodScore as numbers between 0.0 and 1.0 based on the text. 
+   - Example: "slept wonderfully" -> sleepQuality: 0.9
+   - Example: "ate everything" -> appetiteLevel: 0.9
+   - Example: "great mood, very happy" -> moodScore: 0.9
+3. If an aspect is NOT mentioned at all, you MUST set its score to exactly 0.5. Do not omit the field.
+4. Return ONLY valid JSON without markdown formatting.`;
+
+const MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'poolside/laguna-s-2.1:free',
+  'inclusionai/ling-3.0-flash:free'
+];
+
 async function extractObservation({ transcript }) {
-  const response = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      tools: [EXTRACT_TOOL],
-      messages: [
-        {
-          role: 'user',
-          content: `A migrant caregiver recorded this voice note about the elder they care for. Call record_observation with the extracted details. Flag any safety concerns (e.g. falls, refusing food/water, medication issues, sudden behavior change) even if the caregiver didn't call them out explicitly.\n\nTranscript:\n"""\n${transcript}\n"""`,
+  let lastError;
+
+  for (const model of MODELS) {
+    try {
+      const response = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-      ],
-    }),
-  });
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: `Transcript:\n"""\n${transcript}\n"""` },
+          ],
+          response_format: { type: 'json_object' }
+        }),
+      });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenRouter request failed (${response.status}): ${body}`);
+      if (!response.ok) {
+        throw new Error(`OpenRouter request failed (${response.status}): ${await response.text()}`);
+      }
+
+      const data = await response.json();
+      let content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('Model did not return content');
+      }
+
+      // Strip markdown formatting if the model still adds it despite instructions
+      content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      const parsed = JSON.parse(content);
+      console.log(`LLM Result from ${model}:`, JSON.stringify(parsed, null, 2));
+
+      return {
+        ...parsed,
+        categories: normalizeCategories(parsed.categories),
+        structuredObservation: normalizeStructuredObservation(parsed.structuredObservation),
+      };
+    } catch (e) {
+      console.warn(`Model ${model} failed:`, e.message);
+      lastError = e;
+      // Continue to the next model
+    }
   }
 
-  const data = await response.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall) {
-    throw new Error('Model did not return structured observation data');
-  }
-
-  const parsed = JSON.parse(toolCall.function.arguments);
-  return {
-    ...parsed,
-    categories: normalizeCategories(parsed.categories),
-    structuredObservation: normalizeStructuredObservation(parsed.structuredObservation),
-  };
+  throw new Error(`All fallback models failed. Last error: ${lastError?.message}`);
 }
 
 module.exports = {

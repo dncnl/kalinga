@@ -5,6 +5,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Prototype-only: allow any authenticated user (including anonymous)
+    // to read/write the demo household so testing works without seeding
+    // household membership documents.
+    function isDemoHousehold(householdId) {
+      return signedIn() && householdId == 'demo-household';
+    }
+
     function isPlatformAdmin() {
       return signedIn() && request.auth.token.platformAdmin == true;
     }
@@ -348,11 +355,11 @@ service cloud.firestore {
           allow write: if false;
         }
         match /dailySummaries/{dateKey} {
-          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow read: if isDemoHousehold(householdId) || canAccessCareRecipient(householdId, careRecipientId);
           allow write: if false;
         }
         match /weeklySummaries/{weekKey} {
-          allow read: if canAccessCareRecipient(householdId, careRecipientId);
+          allow read: if isDemoHousehold(householdId) || canAccessCareRecipient(householdId, careRecipientId);
           allow write: if false;
         }
       }

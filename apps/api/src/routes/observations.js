@@ -103,12 +103,12 @@ router.post(
         });
       }
 
-      const { text: translatedText } = await translateToMandarin({
-        text: transcript,
-        sourceLocale: locale,
-        projectId: firebase.projectId,
-      });
-      const extraction = await extractObservation({ transcript });
+      // Translation and LLM extraction both only need the transcript —
+      // run them in parallel to cut ~2-4s off the response time.
+      const [{ text: translatedText }, extraction] = await Promise.all([
+        translateToMandarin({ text: transcript, sourceLocale: locale, projectId: firebase.projectId }),
+        extractObservation({ transcript }),
+      ]);
 
       const observationDoc = buildObservationDocument({
         uid: req.uid,

@@ -116,15 +116,22 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 32),
             Center(child: Column(children: [
               GestureDetector(
-                onTapDown: _isProcessing ? null : (_) => _startRecording(),
-                onTapUp: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
-                onTapCancel: _isProcessing ? null : () => _cancelRecording(),
+                onLongPressStart: _isProcessing ? null : (_) => _startRecording(),
+                onLongPressEnd: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
+                onLongPressCancel: _isProcessing ? null : () => _cancelRecording(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: _isHolding ? 88 : 80, height: _isHolding ? 88 : 80,
                   decoration: BoxDecoration(
-                    color: _isProcessing ? Colors.grey.shade400 : _amber, shape: BoxShape.circle,
-                    boxShadow: _isHolding ? [BoxShadow(color: _amber.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)] : [],
+                    color: _isProcessing
+                        ? Colors.grey.shade400
+                        : _isHolding
+                            ? _red
+                            : _amber,
+                    shape: BoxShape.circle,
+                    boxShadow: _isHolding
+                        ? [BoxShadow(color: _red.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)]
+                        : [],
                   ),
                   child: _isProcessing
                       ? const Padding(
@@ -136,8 +143,11 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                _isProcessing ? 'Saving...' : 'Hold to speak',
-                style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600),
+                _isProcessing ? 'Saving...' : _isHolding ? 'Recording...' : 'Hold to speak',
+                style: AppTextStyles.body(fontSize: 13).copyWith(
+                  color: _isHolding ? _red : Colors.grey.shade600,
+                  fontWeight: _isHolding ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
             ])),
             const SizedBox(height: 32),
@@ -152,29 +162,38 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
                 final foodData = _series(trendSeries, 'food');
                 final moodData = _series(trendSeries, 'mood');
 
+                // Week series is anchored to Sunday (index 0). Today's index is
+                // how many days since the most recent Sunday (Sun=0, Mon=1 … Sat=6).
+                // Dart weekday: Mon=1…Sun=7 → Sun%7==0, others match JS getUTCDay.
+                final todayIndex = (DateTime.now().toUtc().weekday % 7)
+                    .clamp(0, sleepData.length - 1);
+
                 return Column(children: [
                   _ChartRow(
                     label: 'Sleep',
                     unit: 'quality',
-                    value: '${(sleepData.last * 100).round()}%',
+                    value: '${(sleepData[todayIndex] * 100).round()}%',
                     data: sleepData,
                     color: _amber,
+                    todayIndex: todayIndex,
                   ),
                   const SizedBox(height: 14),
                   _ChartRow(
                     label: 'Food\neaten',
                     unit: 'of usual',
-                    value: '${(foodData.last * 100).round()}%',
+                    value: '${(foodData[todayIndex] * 100).round()}%',
                     data: foodData,
                     color: _teal,
+                    todayIndex: todayIndex,
                   ),
                   const SizedBox(height: 14),
                   _ChartRow(
                     label: 'Mood',
                     unit: 'score',
-                    value: '${(moodData.last * 100).round()}%',
+                    value: '${(moodData[todayIndex] * 100).round()}%',
                     data: moodData,
                     color: _teal,
+                    todayIndex: todayIndex,
                   ),
                 ]);
               },
@@ -192,7 +211,8 @@ class _ChartRow extends StatelessWidget {
   final String label, unit, value;
   final List<double> data;
   final Color color;
-  const _ChartRow({required this.label, required this.unit, required this.value, required this.data, required this.color});
+  final int todayIndex;
+  const _ChartRow({required this.label, required this.unit, required this.value, required this.data, required this.color, required this.todayIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -201,13 +221,13 @@ class _ChartRow extends StatelessWidget {
       Expanded(child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(data.length, (i) {
-          final isLast = i == data.length - 1;
+          final isToday = i == todayIndex;
           return Expanded(child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Container(
               height: 40 * data[i],
               decoration: BoxDecoration(
-                color: isLast ? color : color.withValues(alpha: 0.35 + i * 0.08),
+                color: isToday ? color : color.withValues(alpha: 0.25 + i * 0.05),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
