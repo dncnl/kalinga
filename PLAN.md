@@ -49,7 +49,8 @@ caregiver and family can see.
 
 ## Progress
 
-- [ ] API server set up
+- [x] API server set up (`apps/api/src/` — Express + lazy Firebase Admin,
+      `GET /health`, boots without Firebase creds configured)
 - [ ] Upload endpoint
 - [ ] Transcribe + translate + save observation
 - [ ] Daily/weekly trend rollup
