@@ -95,6 +95,106 @@
         "migrationNotes": [
           "Initial comprehensive Kalinga schema. Operational collections are created on first write."
         ],
+        "active": false
+      }
+    },
+    {
+      "path": "_schema/1.1.0",
+      "data": {
+        "version": "1.1.0",
+        "database": "cloud-firestore",
+        "releasedAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T21:56:00+08:00"
+        },
+        "compatibleApiVersions": [
+          "v1"
+        ],
+        "collectionManifest": [
+          "_schema/{version}",
+          "appConfig/{configId}",
+          "featureFlags/{flagId}",
+          "supportedLocales/{localeCode}",
+          "governmentServices/{serviceId}",
+          "emergencyPhrasebooks/{phrasebookId}",
+          "emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}",
+          "terminologyGlossaries/{glossaryId}",
+          "terminologyGlossaries/{glossaryId}/entries/{entryId}",
+          "knowledgeArticles/{articleId}",
+          "trainingModules/{moduleId}",
+          "trainingModules/{moduleId}/lessons/{lessonId}",
+          "safetyRuleSets/{ruleSetId}",
+          "safetyRuleSets/{ruleSetId}/rules/{ruleId}",
+          "promptTemplates/{templateId}",
+          "modelPolicies/{policyId}",
+          "organizations/{organizationId}",
+          "organizations/{organizationId}/members/{uid}",
+          "organizations/{organizationId}/sites/{siteId}",
+          "users/{uid}",
+          "users/{uid}/devices/{deviceId}",
+          "users/{uid}/preferences/{preferenceId}",
+          "users/{uid}/notifications/{notificationId}",
+          "users/{uid}/trainingProgress/{moduleId}",
+          "users/{uid}/wellbeingCheckIns/{checkInId}",
+          "users/{uid}/privateSupportRequests/{requestId}",
+          "users/{uid}/privateSupportRequests/{requestId}/messages/{messageId}",
+          "users/{uid}/privateSupportRequests/{requestId}/referrals/{referralId}",
+          "users/{uid}/privateMediaAssets/{assetId}",
+          "users/{uid}/consents/{consentId}",
+          "users/{uid}/dataSubjectRequests/{requestId}",
+          "users/{uid}/emergencySessions/{sessionId}",
+          "households/{householdId}",
+          "households/{householdId}/members/{uid}",
+          "households/{householdId}/invitations/{invitationId}",
+          "households/{householdId}/settings/{settingsId}",
+          "households/{householdId}/organizationLinks/{linkId}",
+          "households/{householdId}/accessGrants/{grantId}",
+          "households/{householdId}/threads/{threadId}",
+          "households/{householdId}/threads/{threadId}/messages/{messageId}",
+          "households/{householdId}/serviceReferrals/{referralId}",
+          "households/{householdId}/mediaAssets/{assetId}",
+          "households/{householdId}/careRecipients/{careRecipientId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/assignments/{caregiverUid}",
+          "households/{householdId}/careRecipients/{careRecipientId}/carePlans/{carePlanId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/observations/{observationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/steps/{stepId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/confirmations/{confirmationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/tasks/{taskId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/taskEvents/{taskEventId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/medications/{medicationId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/medicationEvents/{eventId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/measurements/{measurementId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/incidents/{incidentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/handovers/{handoverId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/appointments/{appointmentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/documents/{documentId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/reports/{reportId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/alerts/{alertId}",
+          "households/{householdId}/careRecipients/{careRecipientId}/dailySummaries/{dateKey}",
+          "households/{householdId}/careRecipients/{careRecipientId}/weeklySummaries/{weekKey}",
+          "processingJobs/{jobId}",
+          "aiRuns/{runId}",
+          "notificationOutbox/{messageId}",
+          "idempotencyKeys/{keyHash}",
+          "auditEvents/{auditId}",
+          "scheduledWork/{workId}",
+          "migrations/{migrationId}",
+          "pilotStudies/{studyId}",
+          "pilotStudies/{studyId}/sites/{siteId}",
+          "pilotStudies/{studyId}/participants/{participantId}",
+          "pilotStudies/{studyId}/sessions/{sessionId}",
+          "pilotStudies/{studyId}/feedback/{feedbackId}",
+          "pilotStudies/{studyId}/metricSnapshots/{snapshotId}"
+        ],
+        "breakingChanges": [],
+        "migrationNotes": [
+          "No operational collection or field was removed or renamed.",
+          "Completed TypeScript document contracts and Firestore path helpers for all 75 document patterns.",
+          "Approved knowledge, training, terminology, phrasebook, and safety-rule metadata now requires authentication.",
+          "Only verified government-service records are publicly readable.",
+          "Expanded validation to enforce complete schema, type, path-helper, seed, index, and rule coverage."
+        ],
         "active": true
       }
     },
@@ -135,7 +235,7 @@
       "data": {
         "localeCode": "zh-TW",
         "displayNameEnglish": "Traditional Chinese",
-        "displayNameNative": "繁體中文",
+        "displayNameNative": "\u7e41\u9ad4\u4e2d\u6587",
         "enabled": true,
         "interfaceSupported": true,
         "speechToTextSupported": true,
@@ -210,7 +310,7 @@
       "data": {
         "localeCode": "vi",
         "displayNameEnglish": "Vietnamese",
-        "displayNameNative": "Tiếng Việt",
+        "displayNameNative": "Ti\u1ebfng Vi\u1ec7t",
         "enabled": true,
         "interfaceSupported": true,
         "speechToTextSupported": true,
@@ -593,7 +693,7 @@
         "scenarioKey": "call119",
         "localizedText": {
           "en": "I need emergency medical help. My address is shown on this screen.",
-          "zh-TW": "我需要緊急醫療協助。我的地址顯示在這個畫面上。"
+          "zh-TW": "\u6211\u9700\u8981\u7dca\u6025\u91ab\u7642\u5354\u52a9\u3002\u6211\u7684\u5730\u5740\u986f\u793a\u5728\u9019\u500b\u756b\u9762\u4e0a\u3002"
         },
         "localizedAudioAssetIds": {},
         "recommendedServiceId": "119",
@@ -617,7 +717,7 @@
         "scenarioKey": "contact1955",
         "localizedText": {
           "en": "I need labor consultation or interpretation assistance.",
-          "zh-TW": "我需要勞動諮詢或口譯協助。"
+          "zh-TW": "\u6211\u9700\u8981\u52de\u52d5\u8aee\u8a62\u6216\u53e3\u8b6f\u5354\u52a9\u3002"
         },
         "localizedAudioAssetIds": {},
         "recommendedServiceId": "1955",
@@ -846,6 +946,40 @@
           "__type": "serverTimestamp"
         },
         "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "migrations/schema-1.0.0-to-1.1.0",
+      "data": {
+        "fromVersion": "1.0.0",
+        "toVersion": "1.1.0",
+        "description": "Additive database-contract synchronization and read-policy hardening; no operational data rewrite required.",
+        "status": "completed",
+        "startedAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T21:56:00+08:00"
+        },
+        "completedAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T21:56:00+08:00"
+        },
+        "appliedBy": "schema-package-build",
+        "checkpoint": {
+          "operationalDocumentsRewritten": 0,
+          "pathsRemoved": 0,
+          "fieldsRemoved": 0
+        },
+        "error": null,
+        "createdAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T21:56:00+08:00"
+        },
+        "createdBy": "schema-package-build",
+        "updatedAt": {
+          "__type": "timestamp",
+          "value": "2026-07-29T21:56:00+08:00"
+        },
+        "updatedBy": "schema-package-build"
       }
     }
   ]

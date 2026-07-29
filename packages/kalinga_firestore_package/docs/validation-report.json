@@ -1,10 +1,16 @@
 {
-  "validatedAt": "2026-07-29T13:05:18.261Z",
-  "schemaVersion": "1.0.0",
+  "validatedAt": "2026-07-29T14:09:09.828Z",
+  "packageVersion": "1.1.0",
+  "schemaVersion": "1.1.0",
   "collectionPatterns": 75,
-  "referenceDocuments": 28,
+  "generatedInterfaces": 75,
+  "documentPathHelpers": 75,
+  "collectionPathHelpers": 75,
+  "referenceDocuments": 30,
   "demoDocuments": 7,
   "compositeIndexes": 72,
   "fieldIndexOverrides": 36,
+  "removedPaths": 0,
+  "removedFields": 0,
   "checks": "PASS"
 }

@@ -7,8 +7,8 @@
 3. Deploy `firestore.rules`, `firestore.indexes.json`, and `storage.rules`.
 4. Wait for index creation where practical.
 5. Import `data/reference-seed.json` with `scripts/seed-firestore.mjs`.
-6. Verify the seeded `_schema/1.0.0` and `appConfig/current` documents.
-7. Review and approve draft public content before exposing it to ordinary users.
+6. Verify the seeded `_schema/1.1.0` and `appConfig/current` documents.
+7. Verify and enable government-service records before public use; approve authenticated phrasebook, terminology, knowledge, training, and safety-rule-set metadata before ordinary signed-in users can read it.
 8. Connect the Node.js API and configure secrets outside Firestore.
 9. Run emulator/API authorization tests before creating real household data.
 

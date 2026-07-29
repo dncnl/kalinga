@@ -1,0 +1,391 @@
+{
+  "version": "1.1.0",
+  "description": "Exhaustive generated-contract mapping for every authoritative Firestore document pattern.",
+  "documents": {
+    "_schema/{version}": {
+      "interface": "SchemaVersionDocument",
+      "documentHelper": "schemaVersion",
+      "collectionHelper": "schemaVersions"
+    },
+    "appConfig/{configId}": {
+      "interface": "AppConfigDocument",
+      "documentHelper": "appConfig",
+      "collectionHelper": "appConfigs"
+    },
+    "featureFlags/{flagId}": {
+      "interface": "FeatureFlagDocument",
+      "documentHelper": "featureFlag",
+      "collectionHelper": "featureFlags"
+    },
+    "supportedLocales/{localeCode}": {
+      "interface": "SupportedLocaleDocument",
+      "documentHelper": "supportedLocale",
+      "collectionHelper": "supportedLocales"
+    },
+    "governmentServices/{serviceId}": {
+      "interface": "GovernmentServiceDocument",
+      "documentHelper": "governmentService",
+      "collectionHelper": "governmentServices"
+    },
+    "emergencyPhrasebooks/{phrasebookId}": {
+      "interface": "EmergencyPhrasebookDocument",
+      "documentHelper": "emergencyPhrasebook",
+      "collectionHelper": "emergencyPhrasebooks"
+    },
+    "emergencyPhrasebooks/{phrasebookId}/phrases/{phraseId}": {
+      "interface": "EmergencyPhraseDocument",
+      "documentHelper": "emergencyPhrase",
+      "collectionHelper": "emergencyPhrases"
+    },
+    "terminologyGlossaries/{glossaryId}": {
+      "interface": "TerminologyGlossaryDocument",
+      "documentHelper": "terminologyGlossary",
+      "collectionHelper": "terminologyGlossaries"
+    },
+    "terminologyGlossaries/{glossaryId}/entries/{entryId}": {
+      "interface": "TerminologyEntryDocument",
+      "documentHelper": "terminologyEntry",
+      "collectionHelper": "terminologyEntries"
+    },
+    "knowledgeArticles/{articleId}": {
+      "interface": "KnowledgeArticleDocument",
+      "documentHelper": "knowledgeArticle",
+      "collectionHelper": "knowledgeArticles"
+    },
+    "trainingModules/{moduleId}": {
+      "interface": "TrainingModuleDocument",
+      "documentHelper": "trainingModule",
+      "collectionHelper": "trainingModules"
+    },
+    "trainingModules/{moduleId}/lessons/{lessonId}": {
+      "interface": "TrainingLessonDocument",
+      "documentHelper": "trainingLesson",
+      "collectionHelper": "trainingLessons"
+    },
+    "safetyRuleSets/{ruleSetId}": {
+      "interface": "SafetyRuleSetDocument",
+      "documentHelper": "safetyRuleSet",
+      "collectionHelper": "safetyRuleSets"
+    },
+    "safetyRuleSets/{ruleSetId}/rules/{ruleId}": {
+      "interface": "SafetyRuleDocument",
+      "documentHelper": "safetyRule",
+      "collectionHelper": "safetyRules"
+    },
+    "promptTemplates/{templateId}": {
+      "interface": "PromptTemplateDocument",
+      "documentHelper": "promptTemplate",
+      "collectionHelper": "promptTemplates"
+    },
+    "modelPolicies/{policyId}": {
+      "interface": "ModelPolicyDocument",
+      "documentHelper": "modelPolicy",
+      "collectionHelper": "modelPolicies"
+    },
+    "organizations/{organizationId}": {
+      "interface": "OrganizationDocument",
+      "documentHelper": "organization",
+      "collectionHelper": "organizations"
+    },
+    "organizations/{organizationId}/members/{uid}": {
+      "interface": "OrganizationMemberDocument",
+      "documentHelper": "organizationMember",
+      "collectionHelper": "organizationMembers"
+    },
+    "organizations/{organizationId}/sites/{siteId}": {
+      "interface": "OrganizationSiteDocument",
+      "documentHelper": "organizationSite",
+      "collectionHelper": "organizationSites"
+    },
+    "users/{uid}": {
+      "interface": "UserDocument",
+      "documentHelper": "user",
+      "collectionHelper": "users"
+    },
+    "users/{uid}/devices/{deviceId}": {
+      "interface": "UserDeviceDocument",
+      "documentHelper": "userDevice",
+      "collectionHelper": "userDevices"
+    },
+    "users/{uid}/preferences/{preferenceId}": {
+      "interface": "UserPreferenceDocument",
+      "documentHelper": "userPreference",
+      "collectionHelper": "userPreferences"
+    },
+    "users/{uid}/notifications/{notificationId}": {
+      "interface": "UserNotificationDocument",
+      "documentHelper": "userNotification",
+      "collectionHelper": "userNotifications"
+    },
+    "users/{uid}/trainingProgress/{moduleId}": {
+      "interface": "TrainingProgressDocument",
+      "documentHelper": "trainingProgress",
+      "collectionHelper": "userTrainingProgress"
+    },
+    "users/{uid}/wellbeingCheckIns/{checkInId}": {
+      "interface": "WellbeingCheckInDocument",
+      "documentHelper": "wellbeingCheckIn",
+      "collectionHelper": "wellbeingCheckIns"
+    },
+    "users/{uid}/privateSupportRequests/{requestId}": {
+      "interface": "PrivateSupportRequestDocument",
+      "documentHelper": "privateSupportRequest",
+      "collectionHelper": "privateSupportRequests"
+    },
+    "users/{uid}/privateSupportRequests/{requestId}/messages/{messageId}": {
+      "interface": "PrivateSupportMessageDocument",
+      "documentHelper": "privateSupportMessage",
+      "collectionHelper": "privateSupportMessages"
+    },
+    "users/{uid}/privateSupportRequests/{requestId}/referrals/{referralId}": {
+      "interface": "PrivateSupportReferralDocument",
+      "documentHelper": "privateSupportReferral",
+      "collectionHelper": "privateSupportReferrals"
+    },
+    "users/{uid}/privateMediaAssets/{assetId}": {
+      "interface": "PrivateMediaAssetDocument",
+      "documentHelper": "privateMediaAsset",
+      "collectionHelper": "privateMediaAssets"
+    },
+    "users/{uid}/consents/{consentId}": {
+      "interface": "ConsentRecordDocument",
+      "documentHelper": "userConsent",
+      "collectionHelper": "userConsents"
+    },
+    "users/{uid}/dataSubjectRequests/{requestId}": {
+      "interface": "DataSubjectRequestDocument",
+      "documentHelper": "dataSubjectRequest",
+      "collectionHelper": "dataSubjectRequests"
+    },
+    "users/{uid}/emergencySessions/{sessionId}": {
+      "interface": "EmergencySessionDocument",
+      "documentHelper": "userEmergencySession",
+      "collectionHelper": "userEmergencySessions"
+    },
+    "households/{householdId}": {
+      "interface": "HouseholdDocument",
+      "documentHelper": "household",
+      "collectionHelper": "households"
+    },
+    "households/{householdId}/members/{uid}": {
+      "interface": "HouseholdMemberDocument",
+      "documentHelper": "householdMember",
+      "collectionHelper": "householdMembers"
+    },
+    "households/{householdId}/invitations/{invitationId}": {
+      "interface": "HouseholdInvitationDocument",
+      "documentHelper": "householdInvitation",
+      "collectionHelper": "householdInvitations"
+    },
+    "households/{householdId}/settings/{settingsId}": {
+      "interface": "HouseholdSettingDocument",
+      "documentHelper": "householdSetting",
+      "collectionHelper": "householdSettings"
+    },
+    "households/{householdId}/organizationLinks/{linkId}": {
+      "interface": "HouseholdOrganizationLinkDocument",
+      "documentHelper": "householdOrganizationLink",
+      "collectionHelper": "householdOrganizationLinks"
+    },
+    "households/{householdId}/accessGrants/{grantId}": {
+      "interface": "AccessGrantDocument",
+      "documentHelper": "accessGrant",
+      "collectionHelper": "accessGrants"
+    },
+    "households/{householdId}/threads/{threadId}": {
+      "interface": "CareThreadDocument",
+      "documentHelper": "careThread",
+      "collectionHelper": "careThreads"
+    },
+    "households/{householdId}/threads/{threadId}/messages/{messageId}": {
+      "interface": "CareThreadMessageDocument",
+      "documentHelper": "careThreadMessage",
+      "collectionHelper": "careThreadMessages"
+    },
+    "households/{householdId}/serviceReferrals/{referralId}": {
+      "interface": "ServiceReferralDocument",
+      "documentHelper": "serviceReferral",
+      "collectionHelper": "serviceReferrals"
+    },
+    "households/{householdId}/mediaAssets/{assetId}": {
+      "interface": "HouseholdMediaAssetDocument",
+      "documentHelper": "householdMediaAsset",
+      "collectionHelper": "householdMediaAssets"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}": {
+      "interface": "CareRecipientDocument",
+      "documentHelper": "careRecipient",
+      "collectionHelper": "careRecipients"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/assignments/{caregiverUid}": {
+      "interface": "CareAssignmentDocument",
+      "documentHelper": "assignment",
+      "collectionHelper": "assignments"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/carePlans/{carePlanId}": {
+      "interface": "CarePlanDocument",
+      "documentHelper": "carePlan",
+      "collectionHelper": "carePlans"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/observations/{observationId}": {
+      "interface": "ObservationDocument",
+      "documentHelper": "observation",
+      "collectionHelper": "observations"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}": {
+      "interface": "InstructionDocument",
+      "documentHelper": "instruction",
+      "collectionHelper": "instructions"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/steps/{stepId}": {
+      "interface": "InstructionStepDocument",
+      "documentHelper": "instructionStep",
+      "collectionHelper": "instructionSteps"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/instructions/{instructionId}/confirmations/{confirmationId}": {
+      "interface": "InstructionConfirmationDocument",
+      "documentHelper": "instructionConfirmation",
+      "collectionHelper": "instructionConfirmations"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/tasks/{taskId}": {
+      "interface": "CareTaskDocument",
+      "documentHelper": "task",
+      "collectionHelper": "tasks"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/taskEvents/{taskEventId}": {
+      "interface": "CareTaskEventDocument",
+      "documentHelper": "taskEvent",
+      "collectionHelper": "taskEvents"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/medications/{medicationId}": {
+      "interface": "MedicationDocument",
+      "documentHelper": "medication",
+      "collectionHelper": "medications"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/medicationEvents/{eventId}": {
+      "interface": "MedicationEventDocument",
+      "documentHelper": "medicationEvent",
+      "collectionHelper": "medicationEvents"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/measurements/{measurementId}": {
+      "interface": "MeasurementDocument",
+      "documentHelper": "measurement",
+      "collectionHelper": "measurements"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/incidents/{incidentId}": {
+      "interface": "IncidentDocument",
+      "documentHelper": "incident",
+      "collectionHelper": "incidents"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/handovers/{handoverId}": {
+      "interface": "CareHandoverDocument",
+      "documentHelper": "handover",
+      "collectionHelper": "handovers"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/appointments/{appointmentId}": {
+      "interface": "AppointmentDocument",
+      "documentHelper": "appointment",
+      "collectionHelper": "appointments"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/documents/{documentId}": {
+      "interface": "CareRecipientAttachmentDocument",
+      "documentHelper": "careRecipientAttachment",
+      "collectionHelper": "careRecipientAttachments"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/reports/{reportId}": {
+      "interface": "CareReportDocument",
+      "documentHelper": "report",
+      "collectionHelper": "reports"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/alerts/{alertId}": {
+      "interface": "AlertDocument",
+      "documentHelper": "alert",
+      "collectionHelper": "alerts"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/dailySummaries/{dateKey}": {
+      "interface": "DailySummaryDocument",
+      "documentHelper": "dailySummary",
+      "collectionHelper": "dailySummaries"
+    },
+    "households/{householdId}/careRecipients/{careRecipientId}/weeklySummaries/{weekKey}": {
+      "interface": "WeeklySummaryDocument",
+      "documentHelper": "weeklySummary",
+      "collectionHelper": "weeklySummaries"
+    },
+    "processingJobs/{jobId}": {
+      "interface": "ProcessingJobDocument",
+      "documentHelper": "processingJob",
+      "collectionHelper": "processingJobs"
+    },
+    "aiRuns/{runId}": {
+      "interface": "AiRunDocument",
+      "documentHelper": "aiRun",
+      "collectionHelper": "aiRuns"
+    },
+    "notificationOutbox/{messageId}": {
+      "interface": "NotificationOutboxDocument",
+      "documentHelper": "notificationOutboxMessage",
+      "collectionHelper": "notificationOutbox"
+    },
+    "idempotencyKeys/{keyHash}": {
+      "interface": "IdempotencyKeyDocument",
+      "documentHelper": "idempotencyKey",
+      "collectionHelper": "idempotencyKeys"
+    },
+    "auditEvents/{auditId}": {
+      "interface": "AuditEventDocument",
+      "documentHelper": "auditEvent",
+      "collectionHelper": "auditEvents"
+    },
+    "scheduledWork/{workId}": {
+      "interface": "ScheduledWorkDocument",
+      "documentHelper": "scheduledWorkItem",
+      "collectionHelper": "scheduledWork"
+    },
+    "migrations/{migrationId}": {
+      "interface": "MigrationDocument",
+      "documentHelper": "migration",
+      "collectionHelper": "migrations"
+    },
+    "pilotStudies/{studyId}": {
+      "interface": "PilotStudyDocument",
+      "documentHelper": "pilotStudy",
+      "collectionHelper": "pilotStudies"
+    },
+    "pilotStudies/{studyId}/sites/{siteId}": {
+      "interface": "PilotStudySiteDocument",
+      "documentHelper": "pilotStudySite",
+      "collectionHelper": "pilotStudySites"
+    },
+    "pilotStudies/{studyId}/participants/{participantId}": {
+      "interface": "PilotParticipantDocument",
+      "documentHelper": "pilotParticipant",
+      "collectionHelper": "pilotParticipants"
+    },
+    "pilotStudies/{studyId}/sessions/{sessionId}": {
+      "interface": "PilotSessionDocument",
+      "documentHelper": "pilotSession",
+      "collectionHelper": "pilotSessions"
+    },
+    "pilotStudies/{studyId}/feedback/{feedbackId}": {
+      "interface": "PilotFeedbackDocument",
+      "documentHelper": "pilotFeedbackEntry",
+      "collectionHelper": "pilotFeedback"
+    },
+    "pilotStudies/{studyId}/metricSnapshots/{snapshotId}": {
+      "interface": "PilotMetricSnapshotDocument",
+      "documentHelper": "pilotMetricSnapshot",
+      "collectionHelper": "pilotMetricSnapshots"
+    }
+  },
+  "aliases": {
+    "careAssignment": "assignment",
+    "careAssignments": "assignments",
+    "careTask": "task",
+    "careTasks": "tasks",
+    "careTaskEvent": "taskEvent",
+    "careTaskEvents": "taskEvents",
+    "careReport": "report",
+    "careReports": "reports"
+  }
+}
