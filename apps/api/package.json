@@ -2,9 +2,11 @@
   "name": "api",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
@@ -12,12 +14,15 @@
   "type": "commonjs",
   "dependencies": {
     "@dataconnect/admin-generated": "file:src/dataconnect-admin-generated",
+    "@google-cloud/speech": "^7.5.0",
+    "@google-cloud/translate": "^9.4.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "firebase-admin": "^14.2.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }
