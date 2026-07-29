@@ -5,7 +5,6 @@ const request = require('supertest');
 const firebase = require('../../src/firebase');
 const { client: speechClient } = require('../../src/lib/transcribe');
 const { client: translateClient } = require('../../src/lib/translate');
-const { client: anthropicClient } = require('../../src/lib/extractObservation');
 const app = require('../../src/app');
 
 const ROUTE = '/households/h1/care-recipients/r1/observations/obs-1/process';
@@ -29,19 +28,28 @@ function mockPipelineSuccess(t) {
   t.mock.method(translateClient, 'translateText', async () => [
     { translations: [{ translatedText: '他睡得很好。' }] },
   ]);
-  t.mock.method(anthropicClient.messages, 'create', async () => ({
-    content: [
-      {
-        type: 'tool_use',
-        name: 'record_observation',
-        input: {
-          categories: ['sleep'],
-          comparisonToUsual: 'same',
-          structuredObservation: { summary: 'Slept well.' },
-          safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
+  t.mock.method(global, 'fetch', async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            tool_calls: [
+              {
+                function: {
+                  arguments: JSON.stringify({
+                    categories: ['sleep'],
+                    comparisonToUsual: 'same',
+                    structuredObservation: { summary: 'Slept well.' },
+                    safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
+                  }),
+                },
+              },
+            ],
+          },
         },
-      },
-    ],
+      ],
+    }),
   }));
 }
 

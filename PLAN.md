@@ -43,9 +43,14 @@ caregiver and family can see.
 
 ## Open question
 
-- Which service transcribes/translates the audio? Leaning Google Cloud
-  Speech-to-Text + Translate since the rest of the stack is Firebase — needs
-  confirmation.
+- STT/translate: Google Cloud Speech-to-Text + Cloud Translation, confirmed.
+  **Cebuano (ceb) has no Speech-to-Text support** — still unresolved, needs a
+  different vendor or a text-only fallback for that locale.
+- Structured extraction (categories/mood/safety flags from transcript):
+  originally planned to use Claude, but no billing available. Switched to
+  OpenRouter's free tier (`openai/gpt-oss-20b:free`). Works, but text-quality
+  is rough at times (garbled words in free-text fields) — fine for
+  prototyping, worth revisiting once there's budget for a better model.
 
 ## Progress
 
@@ -59,15 +64,15 @@ caregiver and family can see.
       this from the mobile app yet.)
 - [x] Transcribe + translate + save observation
       (`POST .../observations/:observationId/process` — Google Cloud
-      Speech-to-Text → Cloud Translation (→ zh-TW) → Claude extracts
-      structured fields (categories, comparisonToUsual, safetyAssessment) →
-      writes a full `ObservationDocument`. **Cebuano (ceb) has no
-      Speech-to-Text support** — rejected with a clear 400 until we pick a
-      workaround or different STT vendor for that locale. Unit-tested only
-      (23 tests, all mocked) — NOT yet smoke-tested live: needs Cloud
-      Speech-to-Text + Cloud Translation APIs enabled on `kalinga-bc97f` and
-      the service account granted access, plus an `ANTHROPIC_API_KEY` in
-      `apps/api/.env`.)
+      Speech-to-Text → Cloud Translation (→ zh-TW) → OpenRouter free-tier
+      model extracts structured fields (categories, comparisonToUsual,
+      safetyAssessment) → writes a full `ObservationDocument`. Cebuano is
+      rejected with a clear 400 (see open question). 33 unit tests, all
+      mocked. Live-smoke-tested the extraction step against the real
+      OpenRouter API — works, output text quality is rough (see open
+      question) but structurally correct. STT/Translate steps NOT yet
+      smoke-tested live — those two Cloud APIs still need to be confirmed
+      enabled + IAM-granted on `kalinga-bc97f`.)
 - [ ] Daily/weekly trend rollup
 - [ ] Mic button records & uploads
 - [ ] Log screen shows real trend
