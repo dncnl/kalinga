@@ -42,6 +42,9 @@ build/
 .flutter-plugins-dependencies
 pubspec.lock.bak
 
+# Flutter — Windows (generated build artifacts — do NOT commit)
+windows/flutter/ephemeral/
+
 # Flutter — Android
 apps/mobile/android/.gradle/
 apps/mobile/android/app/debug/
