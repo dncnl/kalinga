@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 const healthRouter = require('./routes/health');
+const observationsRouter = require('./routes/observations');
 
 const app = express();
 
@@ -9,5 +10,6 @@ app.use(cors());
 app.use(express.json());
 
 app.use(healthRouter);
+app.use(observationsRouter);
 
 module.exports = app;
