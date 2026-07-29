@@ -52,6 +52,26 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildDropdown(_familyLanguage, _familyLanguages, (v) => setState(() => _familyLanguage = v!)),
             const SizedBox(height: 24),
 
+            // Account
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                onTap: () => context.push('/auth'),
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.person_outline_rounded, color: Colors.grey.shade600, size: 22),
+                title: Text('Sign in / create account', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+                subtitle: Text('Only needed to invite a family viewer.', style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+                trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+              ),
+            ),
+            const SizedBox(height: 24),
+
             // Toggles
             _buildToggle(
               title: 'Check-in reminders',
