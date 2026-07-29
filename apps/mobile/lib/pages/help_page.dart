@@ -1,22 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
+import '../data/phrasebook_data.dart';
 
-class HelpPage extends StatelessWidget {
+class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
 
+  @override
+  State<HelpPage> createState() => _HelpPageState();
+}
+
+class _HelpPageState extends State<HelpPage> {
   static const _bg = Color(0xFFF5F0E8);
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
 
-  static const _contacts = [
+  static const _primaryContacts = [
     _Contact('119', 'Ambulance and fire', 'Life-threatening emergency', _red, true),
-    _Contact('110', 'Police', 'Danger or crime', _red, true),
     _Contact('1955', 'Labor helpline', 'Free · your language · 24 hours', Colors.black, false),
-    _Contact('1990', 'Foreigner hotline', 'Living and visa questions', Colors.black, false),
-    _Contact('0912 345 678', "Rosa's daughter", 'Family contact', _teal, false),
-    _Contact('02 2595 3316', 'City health hotline', 'Medical advice', _teal, false),
   ];
+
+  static const _moreContacts = [
+    _Contact('110', 'Police', 'Danger or crime', _red, true),
+    _Contact('1990', 'Foreigner hotline', 'Living and visa questions', Colors.black, false),
+  ];
+
+  static const _familyContact = _Contact('0912 345 678', "Rosa's daughter", 'Family contact', _teal, false);
+  static const _clinicContact = _Contact('02 2595 3316', 'City health hotline', 'Medical advice', _teal, false);
+
+  late FlutterTts _flutterTts;
+  String? _speakingId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+  }
+
+  Future<void> _initTts() async {
+    _flutterTts = FlutterTts();
+    await _flutterTts.setLanguage("zh-TW");
+    await _flutterTts.setSpeechRate(0.4);
+    
+    _flutterTts.setStartHandler(() {
+      if (mounted) setState(() {});
+    });
+    
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() {
+          _speakingId = null;
+        });
+      }
+    });
+
+    _flutterTts.setErrorHandler((msg) {
+      if (mounted) {
+        setState(() {
+          _speakingId = null;
+        });
+      }
+    });
+  }
+  
+  @override
+  void dispose() {
+    _flutterTts.stop();
+    super.dispose();
+  }
+
+  Future<void> _speak(PhrasebookEntry entry) async {
+    // For now we default to Mandarin
+    setState(() {
+      _speakingId = entry.id;
+    });
+    await _flutterTts.speak(entry.targetPhrase);
+  }
+
+  Future<void> _makeCall(String number) async {
+    final cleanNumber = number.replaceAll(' ', '');
+    final uri = Uri.parse('tel:$cleanNumber');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not place call')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not place call')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +109,21 @@ class HelpPage extends StatelessWidget {
             Text('One tap calls. No menus.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
             const SizedBox(height: 20),
-            ..._contacts.map((c) => Padding(
+            ..._primaryContacts.map((c) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _ContactCard(contact: c),
+              child: _ContactCard(
+                contact: c,
+                onTap: () => _makeCall(c.number),
+              ),
             )),
+            const SizedBox(height: 10),
+            _buildQuickActions(),
+            const SizedBox(height: 10),
+            _buildMoreNumbers(),
+            const SizedBox(height: 32),
+            _buildPhrasebookHeader(),
+            const SizedBox(height: 16),
+            _buildPhrasebookList(),
             const SizedBox(height: 24),
           ]),
         ),
@@ -46,13 +132,184 @@ class HelpPage extends StatelessWidget {
     );
   }
 
+  Widget _buildQuickActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickActionButton(
+            icon: Icons.phone_rounded,
+            label: 'Call family',
+            onTap: () => _makeCall(_familyContact.number),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _QuickActionButton(
+            icon: Icons.local_hospital_rounded,
+            label: 'Clinic',
+            onTap: () => _makeCall(_clinicContact.number),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhrasebookHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Emergency phrasebook',
+          style: AppTextStyles.heading(fontSize: 18).copyWith(color: Colors.black),
+        ),
+        GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Edit coming soon')));
+          },
+          child: Row(
+            children: [
+              const Icon(Icons.edit, size: 16, color: _teal),
+              const SizedBox(width: 4),
+              Text('Edit', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: _teal)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhrasebookList() {
+    return Column(
+      children: [
+        // Disclaimer for Hokkien
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.orange.shade800),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing Mandarin — Hokkien phrases coming soon',
+                    style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.orange.shade900),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: phrasebookSeed.length,
+          itemBuilder: (context, index) {
+            final entry = phrasebookSeed[index];
+            final isSpeaking = _speakingId == entry.id;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  color: isSpeaking ? Colors.teal.shade50 : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isSpeaking ? _teal : Colors.grey.shade200, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.targetRomanization,
+                            style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.targetPhrase,
+                            style: AppTextStyles.heading(fontSize: 18).copyWith(color: Colors.black),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.caregiverGloss,
+                            style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => _speak(entry),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: _teal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoreNumbers() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ExpansionTile(
+        title: Text('More numbers', style: AppTextStyles.heading(fontSize: 16).copyWith(color: Colors.black)),
+        initiallyExpanded: false,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        children: _moreContacts.map((c) => Padding(
+          padding: const EdgeInsets.only(bottom: 10, left: 16, right: 16),
+          child: _ContactCard(
+            contact: c,
+            onTap: () => _makeCall(c.number),
+          ),
+        )).toList(),
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Row(children: [
       GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
-        child: Container(width: 38, height: 38,
-          decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text('LR', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
+        onTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        },
+        child: Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(color: Colors.grey.shade200, shape: BoxShape.circle),
+          child: const Center(child: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.black87)),
+        ),
       ),
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
@@ -120,13 +377,15 @@ class _Contact {
 
 class _ContactCard extends StatelessWidget {
   final _Contact contact;
-  const _ContactCard({required this.contact});
+  final VoidCallback onTap;
+  
+  const _ContactCard({required this.contact, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final fg = contact.isLight ? Colors.white : Colors.white;
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
@@ -150,6 +409,43 @@ class _ContactCard extends StatelessWidget {
           ])),
           Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.7), size: 22),
         ]),
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: Colors.black),
+          const SizedBox(width: 8),
+          Text(label, style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black)),
+        ],
       ),
     );
   }
