@@ -3,18 +3,24 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { getAuth } = require('firebase-admin/auth');
 
-function buildCredential() {
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (serviceAccountJson) {
-    return cert(JSON.parse(serviceAccountJson));
-  }
-  // Falls back to GOOGLE_APPLICATION_CREDENTIALS or ambient credentials
-  // (e.g. Cloud Run's default service account).
-  return applicationDefault();
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+const serviceAccount = serviceAccountJson ? JSON.parse(serviceAccountJson) : null;
+
+// Plain @google-cloud/* clients (Speech, Translate) don't know about
+// FIREBASE_SERVICE_ACCOUNT — that's a firebase-admin-only convention. Any
+// client that needs to auth the same way should spread this in, e.g.
+// `new SpeechClient(googleAuthOptions())`. Falls back to ADC (unset options)
+// when no explicit service account is configured.
+function googleAuthOptions() {
+  return serviceAccount
+    ? { credentials: serviceAccount, projectId: serviceAccount.project_id }
+    : {};
 }
 
 const app = initializeApp({
-  credential: buildCredential(),
+  // Falls back to GOOGLE_APPLICATION_CREDENTIALS or ambient credentials
+  // (e.g. Cloud Run's default service account) when unset.
+  credential: serviceAccount ? cert(serviceAccount) : applicationDefault(),
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
 });
 
@@ -27,4 +33,4 @@ function getBucket() {
   return getStorage(app).bucket();
 }
 
-module.exports = { app, db, auth, getBucket };
+module.exports = { app, db, auth, getBucket, googleAuthOptions };
