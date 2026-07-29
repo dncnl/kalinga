@@ -70,9 +70,11 @@ caregiver and family can see.
       rejected with a clear 400 (see open question). 33 unit tests, all
       mocked. Live-smoke-tested the extraction step against the real
       OpenRouter API — works, output text quality is rough (see open
-      question) but structurally correct. STT/Translate steps NOT yet
-      smoke-tested live — those two Cloud APIs still need to be confirmed
-      enabled + IAM-granted on `kalinga-bc97f`.)
+      question) but structurally correct. Cloud Translation and
+      Speech-to-Text both confirmed live too (APIs enabled + IAM granted on
+      `kalinga-bc97f`) — Translation returned a real result, STT correctly
+      reached "file not found" on a fake path (i.e. got past auth). Only
+      thing NOT yet tested live is a real audio file end to end.)
 - [ ] Daily/weekly trend rollup
 - [ ] Mic button records & uploads
 - [ ] Log screen shows real trend
