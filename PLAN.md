@@ -88,6 +88,33 @@ caregiver and family can see.
       scheduler wired up — these run on demand for now, not on a cron.
       52 unit tests total in `apps/api` now, all passing, plus a live
       smoke test against real Firestore.)
-- [ ] Mic button records & uploads
+- [x] Mic button records & uploads
+      (`prototype_log_page.dart` — hold-to-record using the `record`
+      package (AAC/.m4a), then `ObservationService.submitVoiceLog()` runs
+      the full pipeline: upload-url → PUT to signed URL → process. Shows a
+      snackbar with the result categories, or the error, when done.
+      **Stopgaps, not real infra:**
+        - No sign-in screen exists anywhere in the app yet — uses Firebase
+          anonymous auth just to get a real ID token for `requireAuth`.
+        - `householdId`/`careRecipientId` are hardcoded to match the
+          existing fake "Lola Rosa" prototype data, not read from any real
+          profile-selection state (multi-patient profiles aren't wired up).
+        - `locale` hardcoded to `fil` — language selection isn't connected
+          to shared state either.
+        - `apiBaseUrl` defaults to the Android-emulator-only
+          `10.0.2.2:8081`; override via `--dart-define=API_BASE_URL=...`
+          for a real device. Nothing is deployed — this only works against
+          a locally-running `apps/api`.
+      Added `RECORD_AUDIO`/`INTERNET` (Android) and
+      `NSMicrophoneUsageDescription` (iOS) permissions.
+      Along the way, fixed a pre-existing bug (unrelated to this feature)
+      blocking ALL Android builds: `android/app/build.gradle.kts` used the
+      `kotlin { compilerOptions {...} }` DSL without ever applying the
+      `org.jetbrains.kotlin.android` plugin — added the missing
+      `id("org.jetbrains.kotlin.android")`.
+      NOT yet tested end-to-end on device: build now gets past the Kotlin
+      error but stops at a missing `android/app/google-services.json` —
+      no Android app has been registered for this project in the Firebase
+      console yet (package name would be `com.kalinga.mobile`).)
 - [ ] Log screen shows real trend
 - [ ] Family view shows real trend

@@ -41,6 +41,9 @@ dependencies:
   # Navigation & UI
   go_router: ^14.8.1
   google_fonts: ^6.2.1
+  record: ^6.2.1
+  path_provider: ^2.1.6
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

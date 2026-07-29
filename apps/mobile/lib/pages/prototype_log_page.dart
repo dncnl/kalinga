@@ -1,5 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+
+import '../services/observation_service.dart';
 import '../theme.dart';
 
 class PrototypeLogPage extends StatefulWidget {
@@ -14,6 +20,56 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   static const _amber = Color(0xFFFBBF24);
   static const _red = Color(0xFFEF3E23);
   bool _isHolding = false;
+  bool _isProcessing = false;
+
+  final _recorder = AudioRecorder();
+  final _observationService = const ObservationService();
+
+  @override
+  void dispose() {
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (!await _recorder.hasPermission()) return;
+
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+    setState(() => _isHolding = true);
+  }
+
+  Future<void> _stopRecordingAndSubmit() async {
+    final path = await _recorder.stop();
+    setState(() {
+      _isHolding = false;
+      _isProcessing = path != null;
+    });
+    if (path == null) return;
+
+    try {
+      final result = await _observationService.submitVoiceLog(File(path));
+      if (!mounted) return;
+      final categories = (result['categories'] as List?)?.join(', ') ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logged: $categories')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save voice log: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    await _recorder.cancel();
+    setState(() => _isHolding = false);
+  }
 
   static const _sleepData = [0.7, 0.9, 0.6, 0.8, 0.7, 0.5, 0.75];
   static const _foodData  = [0.5, 0.8, 0.4, 0.6, 0.3, 0.7, 0.5];
@@ -38,21 +94,29 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 32),
             Center(child: Column(children: [
               GestureDetector(
-                onTapDown: (_) => setState(() => _isHolding = true),
-                onTapUp: (_) => setState(() => _isHolding = false),
-                onTapCancel: () => setState(() => _isHolding = false),
+                onTapDown: _isProcessing ? null : (_) => _startRecording(),
+                onTapUp: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
+                onTapCancel: _isProcessing ? null : () => _cancelRecording(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: _isHolding ? 88 : 80, height: _isHolding ? 88 : 80,
                   decoration: BoxDecoration(
-                    color: _amber, shape: BoxShape.circle,
+                    color: _isProcessing ? Colors.grey.shade400 : _amber, shape: BoxShape.circle,
                     boxShadow: _isHolding ? [BoxShadow(color: _amber.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)] : [],
                   ),
-                  child: const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
+                  child: _isProcessing
+                      ? const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                        )
+                      : const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
                 ),
               ),
               const SizedBox(height: 10),
-              Text('Hold to speak', style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600)),
+              Text(
+                _isProcessing ? 'Saving...' : 'Hold to speak',
+                style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600),
+              ),
             ])),
             const SizedBox(height: 32),
             Text('LAST 7 DAYS', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
