@@ -13,6 +13,8 @@ import 'pages/viewer_page.dart';
 import 'pages/help_page.dart';
 import 'pages/activity_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/auth_page.dart';
+import 'pages/family_register_page.dart';
 
 final router = GoRouter(
   initialLocation: '/language',
@@ -34,5 +36,8 @@ final router = GoRouter(
         builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
+    GoRoute(path: '/auth',    builder: (c, s) => const AuthPage()),
+    GoRoute(path: '/invite/:token',
+        builder: (c, s) => FamilyRegisterPage(token: s.pathParameters['token']!)),
   ],
 );
