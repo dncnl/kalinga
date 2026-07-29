@@ -75,3 +75,5 @@ apps/mobile/ios/Runner/GeneratedPluginRegistrant.*
 .DS_Store
 Thumbs.db
 desktop.ini
+server.log
+windows/
