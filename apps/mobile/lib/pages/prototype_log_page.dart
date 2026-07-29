@@ -1,12 +1,15 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../api_config.dart';
 import '../services/observation_service.dart';
 import '../theme.dart';
+import '../week_key.dart';
 
 class PrototypeLogPage extends StatefulWidget {
   const PrototypeLogPage({super.key});
@@ -77,9 +80,22 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     setState(() => _isHolding = false);
   }
 
-  static const _sleepData = [0.7, 0.9, 0.6, 0.8, 0.7, 0.5, 0.75];
-  static const _foodData  = [0.5, 0.8, 0.4, 0.6, 0.3, 0.7, 0.5];
-  static const _moodData  = [0.4, 0.7, 0.5, 0.6, 0.4, 0.8, 0.6];
+  // Neutral placeholder shown while the real weeklySummaries doc is loading
+  // or doesn't exist yet (e.g. before the first voice log of the week).
+  static const _neutralWeek = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
+      FirebaseFirestore.instance
+          .doc(
+            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
+          )
+          .snapshots();
+
+  static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
+    final raw = trendSeries?[key] as List?;
+    if (raw == null || raw.isEmpty) return _neutralWeek;
+    return raw.map((v) => (v as num).toDouble()).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,11 +143,42 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 32),
             Text('LAST 7 DAYS', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
             const SizedBox(height: 16),
-            _ChartRow(label: 'Sleep',       unit: 'hours',   value: '6',   data: _sleepData, color: _amber),
-            const SizedBox(height: 14),
-            _ChartRow(label: 'Food\neaten', unit: 'of meal', value: '0.5', data: _foodData,  color: _teal),
-            const SizedBox(height: 14),
-            _ChartRow(label: 'Mood',        unit: 'score',   value: '3',   data: _moodData,  color: _teal),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: _weeklySummaryStream,
+              builder: (context, snapshot) {
+                final trendSeries =
+                    snapshot.data?.data()?['trendSeries'] as Map<String, dynamic>?;
+                final sleepData = _series(trendSeries, 'sleep');
+                final foodData = _series(trendSeries, 'food');
+                final moodData = _series(trendSeries, 'mood');
+
+                return Column(children: [
+                  _ChartRow(
+                    label: 'Sleep',
+                    unit: 'quality',
+                    value: '${(sleepData.last * 100).round()}%',
+                    data: sleepData,
+                    color: _amber,
+                  ),
+                  const SizedBox(height: 14),
+                  _ChartRow(
+                    label: 'Food\neaten',
+                    unit: 'of usual',
+                    value: '${(foodData.last * 100).round()}%',
+                    data: foodData,
+                    color: _teal,
+                  ),
+                  const SizedBox(height: 14),
+                  _ChartRow(
+                    label: 'Mood',
+                    unit: 'score',
+                    value: '${(moodData.last * 100).round()}%',
+                    data: moodData,
+                    color: _teal,
+                  ),
+                ]);
+              },
+            ),
             const SizedBox(height: 32),
           ]),
         ),

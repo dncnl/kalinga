@@ -168,5 +168,27 @@ caregiver and family can see.
       the fastest path to prove the plumbing works at all); the mobile
       app's own `submitVoiceLog()` call path end-to-end (this test drove
       the API directly with a script, not through the Flutter UI).)
-- [ ] Log screen shows real trend
-- [ ] Family view shows real trend
+- [x] Log screen shows real trend
+      (`prototype_log_page.dart` — `StreamBuilder` on
+      `weeklySummaries/{weekKey}`, live-updating chart from
+      `trendSeries.{sleep,food,mood}`. Falls back to a neutral 0.5×7
+      placeholder while loading or before any data exists for the week.
+      `week_key.dart` defines the shared week convention: starts most
+      recent Sunday UTC, not a true ISO week label — simpler, avoids
+      year-boundary edge cases, and nothing server-side enforces the
+      schema's "ISOWeek" hint anyway (caller picks the `weekKey` string).
+      Since no scheduler exists, `ObservationService.submitVoiceLog()` now
+      triggers both rollup endpoints itself right after a successful
+      `process` call, so the chart has something to show without a manual
+      rollup step. Value/unit labels changed from the old fake
+      "6 hours"/"0.5 of meal" to "{score}% quality"/"{score}% of usual" —
+      we only ever measure a 0-1 quality score, not real hours/portions,
+      so the old units were fabricated precision.
+      NOT verified by actually pressing the mic in the running app (no
+      GUI/mic-input automation available here) — verified indirectly: the
+      exact same HTTP calls `ObservationService` makes were already proven
+      live in the Step 5 update above.)
+- [x] Family view shows real trend
+      (`viewer_page.dart` — same `StreamBuilder` pattern, same neutral
+      fallback. `viewerId` still isn't wired to a real household/recipient
+      lookup — same hardcoded IDs as the log screen.)

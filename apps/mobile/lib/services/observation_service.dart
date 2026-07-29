@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import '../api_config.dart';
+import '../week_key.dart';
 
 class ObservationService {
   const ObservationService();
@@ -69,6 +70,38 @@ class ObservationService {
       throw Exception('Failed to process observation: ${processRes.body}');
     }
 
+    // No scheduler exists yet (see PLAN.md) — trigger the rollup inline so
+    // the chart has something fresh to show right after logging.
+    await _triggerRollup(token);
+
     return jsonDecode(processRes.body) as Map<String, dynamic>;
+  }
+
+  Future<void> _triggerRollup(String token) async {
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+
+    final today = dateKeyOf(DateTime.now());
+    await http.post(
+      Uri.parse(
+        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/daily',
+      ),
+      headers: headers,
+      body: jsonEncode({'dateKey': today}),
+    );
+
+    final weekStart = currentWeekStartUtc();
+    await http.post(
+      Uri.parse(
+        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/weekly',
+      ),
+      headers: headers,
+      body: jsonEncode({
+        'weekKey': currentWeekKey(),
+        'periodStart': weekStart.toIso8601String(),
+      }),
+    );
   }
 }
