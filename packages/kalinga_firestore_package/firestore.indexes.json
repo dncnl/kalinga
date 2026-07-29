@@ -149,16 +149,6 @@
       ]
     },
     {
-      "collectionGroup": "wellbeingCheckIns",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "privateSupportRequests",
       "queryScope": "COLLECTION",
       "fields": [
@@ -289,16 +279,6 @@
         {
           "fieldPath": "lastMessageAt",
           "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "messages",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "sentAt",
-          "order": "ASCENDING"
         }
       ]
     },
@@ -1022,16 +1002,6 @@
         },
         {
           "fieldPath": "submittedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "metricSnapshots",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "periodEnd",
           "order": "DESCENDING"
         }
       ]
