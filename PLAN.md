@@ -75,7 +75,19 @@ caregiver and family can see.
       `kalinga-bc97f`) — Translation returned a real result, STT correctly
       reached "file not found" on a fake path (i.e. got past auth). Only
       thing NOT yet tested live is a real audio file end to end.)
-- [ ] Daily/weekly trend rollup
+- [x] Daily/weekly trend rollup
+      (`POST .../rollup/daily` and `POST .../rollup/weekly`, same
+      auth+assignment gating as the other routes. Daily summary counts
+      categories/alerts/unresolved concerns from that day's observations.
+      Weekly summary averages `sleepQuality`/`appetiteLevel`/`moodScore`
+      per day into `trendSeries.{sleep,food,mood}` — added those 3 numeric
+      0-1 fields to the extraction schema in Step 3 since the chart needs
+      numbers, not prose. Days with no observations default to a neutral
+      0.5 placeholder (not a real reading — worth revisiting, e.g.
+      carry-forward the last known value, once there are real users). No
+      scheduler wired up — these run on demand for now, not on a cron.
+      52 unit tests total in `apps/api` now, all passing, plus a live
+      smoke test against real Firestore.)
 - [ ] Mic button records & uploads
 - [ ] Log screen shows real trend
 - [ ] Family view shows real trend

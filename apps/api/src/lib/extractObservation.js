@@ -47,6 +47,22 @@ function normalizeCategories(rawCategories) {
   return [...new Set(normalized)];
 }
 
+// Clamps to [0, 1] and drops anything that isn't actually a number — the
+// free model occasionally returns out-of-range or non-numeric junk here.
+function normalizeScore(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null;
+  return Math.max(0, Math.min(1, value));
+}
+
+function normalizeStructuredObservation(structuredObservation = {}) {
+  return {
+    ...structuredObservation,
+    sleepQuality: normalizeScore(structuredObservation.sleepQuality),
+    appetiteLevel: normalizeScore(structuredObservation.appetiteLevel),
+    moodScore: normalizeScore(structuredObservation.moodScore),
+  };
+}
+
 const EXTRACT_TOOL = {
   type: 'function',
   function: {
@@ -77,6 +93,11 @@ const EXTRACT_TOOL = {
             sleep: { type: 'string' },
             appetite: { type: 'string' },
             mood: { type: 'string' },
+            // 0-1 scores so the trend chart has something numeric to plot.
+            // Omit (not 0) when the transcript didn't cover that aspect.
+            sleepQuality: { type: 'number', description: '0 (very poor) to 1 (excellent). Omit if sleep was not mentioned.' },
+            appetiteLevel: { type: 'number', description: '0 (refused to eat) to 1 (ate well). Omit if not mentioned.' },
+            moodScore: { type: 'number', description: '0 (very distressed) to 1 (content/happy). Omit if not mentioned.' },
           },
           required: ['summary'],
         },
@@ -132,7 +153,17 @@ async function extractObservation({ transcript }) {
   }
 
   const parsed = JSON.parse(toolCall.function.arguments);
-  return { ...parsed, categories: normalizeCategories(parsed.categories) };
+  return {
+    ...parsed,
+    categories: normalizeCategories(parsed.categories),
+    structuredObservation: normalizeStructuredObservation(parsed.structuredObservation),
+  };
 }
 
-module.exports = { extractObservation, OBSERVATION_CATEGORIES, MODEL, normalizeCategories };
+module.exports = {
+  extractObservation,
+  OBSERVATION_CATEGORIES,
+  MODEL,
+  normalizeCategories,
+  normalizeScore,
+};

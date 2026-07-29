@@ -3,6 +3,7 @@ const cors = require('cors');
 
 const healthRouter = require('./routes/health');
 const observationsRouter = require('./routes/observations');
+const rollupRouter = require('./routes/rollup');
 
 const app = express();
 
@@ -11,5 +12,6 @@ app.use(express.json());
 
 app.use(healthRouter);
 app.use(observationsRouter);
+app.use(rollupRouter);
 
 module.exports = app;
