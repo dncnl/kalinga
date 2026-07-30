@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../services/profile_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 const _conditions = [
   'dementia',
@@ -36,7 +37,7 @@ class PrototypePatientPage extends StatefulWidget {
 }
 
 class _PrototypePatientPageState extends State<PrototypePatientPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
   static const _chipSelected = Color(0xFF111111);
 
@@ -119,7 +120,12 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
+
+              // ── Back ──────────────────────────────────────────────────
+              const Align(alignment: Alignment.centerLeft, child: AppBackButton()),
+
+              const SizedBox(height: 16),
 
               // ── Step label ─────────────────────────────────────────────
               if (!_isEditing)

@@ -6,7 +6,7 @@ import '../theme.dart';
 class HelpPage extends StatelessWidget {
   const HelpPage({super.key});
 
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
 

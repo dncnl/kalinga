@@ -21,9 +21,14 @@ import 'pages/activity_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/family_register_page.dart';
+import 'pages/family_code_page.dart';
+import 'pages/family_recipients_page.dart';
+import 'pages/role_select_page.dart';
+import 'pages/welcome_page.dart';
+import 'services/family_viewer_service.dart';
 
 final router = GoRouter(
-  initialLocation: '/auth',
+  initialLocation: '/',
   // SelectedProfile.initialize() (fired unawaited in main.dart) restores an
   // already-onboarded caregiver's household/profile from the server. Once
   // that resolves and finds an existing profile, skip the onboarding
@@ -33,21 +38,27 @@ final router = GoRouter(
   redirect: (context, state) {
     // A real (non-anonymous) account is required to use the app —
     // AuthPage's dev-only "Skip (dev)" button is the only way past this
-    // outside of actually registering/signing in. /invite/:token is its
-    // own self-contained account-creation flow for family members
-    // (family_register_page.dart), so it's exempt from this gate too.
-    final onAuthGate = state.matchedLocation == '/auth' || state.matchedLocation.startsWith('/invite/');
+    // outside of actually registering/signing in. The whole entry funnel
+    // (welcome → role picker → auth / family-code / invite) has to stay
+    // reachable without an account, since it's how one gets created.
+    final loc = state.matchedLocation;
+    final onEntryFunnel = loc == '/' ||
+        loc == '/role' ||
+        loc == '/auth' ||
+        loc == '/family-code' ||
+        loc.startsWith('/invite/');
     final user = FirebaseAuth.instance.currentUser;
     final hasRealAccount = user != null && !user.isAnonymous;
-    if (!hasRealAccount && !DevBypass.instance.skipped && !onAuthGate) return '/auth';
+    if (!hasRealAccount && !DevBypass.instance.skipped && !onEntryFunnel) return '/';
 
     final profile = SelectedProfile.instance;
     if (!profile.hasProfile) return null;
 
-    final onboarding = state.matchedLocation == '/language' || state.matchedLocation == '/patient';
+    final onboarding = loc == '/language' || loc == '/patient';
     return onboarding ? '/home' : null;
   },
   routes: [
+    GoRoute(path: '/',          builder: (c, s) => const WelcomePage()),
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),
     GoRoute(path: '/patient/edit',
@@ -68,7 +79,16 @@ final router = GoRouter(
         builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
-    GoRoute(path: '/auth',    builder: (c, s) => const AuthPage()),
+    GoRoute(path: '/auth',
+        builder: (c, s) => AuthPage(
+              startInLoginMode: s.uri.queryParameters['mode'] == 'login',
+              asFamilyMember: s.uri.queryParameters['role'] == 'family',
+            )),
+    GoRoute(path: '/role',
+        builder: (c, s) => RoleSelectPage(isLogin: s.uri.queryParameters['mode'] == 'login')),
+    GoRoute(path: '/family-code',  builder: (c, s) => const FamilyCodePage()),
+    GoRoute(path: '/family-recipients',
+        builder: (c, s) => FamilyRecipientsPage(recipients: s.extra as List<ViewableCareRecipient>)),
     GoRoute(path: '/invite/:token',
         builder: (c, s) => FamilyRegisterPage(token: s.pathParameters['token']!)),
   ],

@@ -17,7 +17,7 @@ class PrototypeHomePage extends StatefulWidget {
 }
 
 class _PrototypeHomePageState extends State<PrototypeHomePage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
   static const _amber = Color(0xFFD97706);
@@ -691,6 +691,7 @@ class _ScheduleTile extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
+                      border: Border.all(color: Colors.grey.shade200),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2))],
                     ),

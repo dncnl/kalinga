@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 enum _ActivityStatus { resolved, urgent, logged, watch }
 
@@ -31,7 +32,7 @@ class ActivityPage extends StatefulWidget {
 }
 
 class _ActivityPageState extends State<ActivityPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
   int _tab = 0;
@@ -88,6 +89,8 @@ class _ActivityPageState extends State<ActivityPage> {
   Widget _buildHeader(BuildContext context) {
     final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
+      const AppBackButton(),
+      const SizedBox(width: 10),
       GestureDetector(
         onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38,
@@ -210,7 +213,7 @@ class _ActivityTile extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(item.title, style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
               const SizedBox(height: 2),

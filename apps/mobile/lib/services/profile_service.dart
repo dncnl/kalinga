@@ -159,6 +159,22 @@ class ProfileService {
     return households;
   }
 
+  /// GET /care-recipients/:id/household — mounted at the app root (no
+  /// /households prefix), resolves which household a recipient belongs to
+  /// from just its id. Built for a viewer who only has a recipient id
+  /// (e.g. ViewerPage, given only /viewer/:id).
+  Future<String> resolveHouseholdForCareRecipient(String careRecipientId) async {
+    final token = await getIdToken();
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/care-recipients/$careRecipientId/household'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to resolve household: ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['householdId'] as String;
+  }
+
   Future<void> switchHousehold(String householdId) async {
     final token = await getIdToken();
     final res = await http.post(
