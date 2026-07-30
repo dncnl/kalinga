@@ -10,15 +10,22 @@ import 'auth_token.dart';
 class ObservationService {
   const ObservationService();
 
-  /// Records → uploads → processes one voice log. Returns the extraction
-  /// result (categories, comparisonToUsual, safetyAssessment, etc).
-  Future<Map<String, dynamic>> submitVoiceLog(File audioFile) async {
+  /// Records → uploads → processes one voice log for [careRecipientId] in
+  /// [householdId] — both must come from the caller's currently selected
+  /// profile (SelectedProfile), not hardcoded, so every log lands against
+  /// the right elder. Returns the extraction result (categories,
+  /// comparisonToUsual, safetyAssessment, etc).
+  Future<Map<String, dynamic>> submitVoiceLog(
+    File audioFile, {
+    required String householdId,
+    required String careRecipientId,
+  }) async {
     final token = await getIdToken();
     const contentType = 'audio/wav';
 
     final uploadUrlRes = await http.post(
       Uri.parse(
-        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/observations/upload-url',
+        '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/observations/upload-url',
       ),
       headers: {
         'Authorization': 'Bearer $token',
@@ -46,7 +53,7 @@ class ObservationService {
 
     final processRes = await http.post(
       Uri.parse(
-        '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/observations/$observationId/process',
+        '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/observations/$observationId/process',
       ),
       headers: {
         'Authorization': 'Bearer $token',
@@ -61,12 +68,16 @@ class ObservationService {
     // Trigger rollup in the background — don't await it so the UI
     // shows "Logged" immediately. The chart updates via Firestore
     // real-time listener once the rollup finishes.
-    _triggerRollup(token);
+    _triggerRollup(token, householdId: householdId, careRecipientId: careRecipientId);
 
     return jsonDecode(processRes.body) as Map<String, dynamic>;
   }
 
-  Future<void> _triggerRollup(String token) async {
+  Future<void> _triggerRollup(
+    String token, {
+    required String householdId,
+    required String careRecipientId,
+  }) async {
     final headers = {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
@@ -78,14 +89,14 @@ class ObservationService {
     await Future.wait([
       http.post(
         Uri.parse(
-          '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/daily',
+          '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/rollup/daily',
         ),
         headers: headers,
         body: jsonEncode({'dateKey': today}),
       ),
       http.post(
         Uri.parse(
-          '$apiBaseUrl/households/$demoHouseholdId/care-recipients/$demoCareRecipientId/rollup/weekly',
+          '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/rollup/weekly',
         ),
         headers: headers,
         body: jsonEncode({

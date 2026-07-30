@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../api_config.dart';
+import '../state/selected_profile.dart';
 import '../theme.dart';
 import '../week_key.dart';
 
@@ -21,18 +21,32 @@ class ViewerPage extends StatelessWidget {
     return raw.map((v) => (v as num).toDouble()).toList();
   }
 
-  // viewerId isn't wired to a real household/careRecipient lookup yet — same
-  // hardcoded stopgap as prototype_log_page.dart (see PLAN.md).
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
-      FirebaseFirestore.instance
-          .doc(
-            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
-          )
-          .snapshots();
+  // viewerId isn't wired to a real invite/family-linked lookup yet — this
+  // reads the caregiver's own SelectedProfile, which only makes sense while
+  // she's previewing "what family sees" from within her own app (the
+  // "Preview what family sees" link on the patient detail page). A real
+  // family member opening this via an invite link would need actual
+  // viewer-to-household resolution, which doesn't exist yet.
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? get _weeklySummaryStream {
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) return null;
+
+    return FirebaseFirestore.instance
+        .doc(
+          'households/$householdId/careRecipients/$careRecipientId/weeklySummaries/${currentWeekKey()}',
+        )
+        .snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: SelectedProfile.instance,
+      builder: (context, _) {
+        final name = SelectedProfile.instance.careRecipient?.displayName ?? '';
+        return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -62,7 +76,11 @@ class ViewerPage extends StatelessWidget {
             const SizedBox(height: 28),
 
             // ── Chinese title ───────────────────────────────────────────
-            Text('羅莎奶奶・本週',
+            // Not actually translated — showing the raw displayName here
+            // rather than the old hardcoded "羅莎奶奶" is at least correct
+            // per-profile, though a real Mandarin honorific/name would need
+            // real translation, not just interpolation.
+            Text('$name・本週',
                 style: AppTextStyles.heading(fontSize: 28).copyWith(color: Colors.black)),
 
             const SizedBox(height: 20),
@@ -147,6 +165,8 @@ class ViewerPage extends StatelessWidget {
           ]),
         ),
       ),
+    );
+      },
     );
   }
 }

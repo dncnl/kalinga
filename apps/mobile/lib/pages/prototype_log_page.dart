@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
-import '../api_config.dart';
+import '../state/selected_profile.dart';
 import '../services/observation_service.dart';
 import '../theme.dart';
 import '../week_key.dart';
@@ -58,8 +58,24 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     });
     if (path == null) return;
 
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) {
+      setState(() => _isProcessing = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a profile before logging.')),
+      );
+      return;
+    }
+
     try {
-      final result = await _observationService.submitVoiceLog(File(path));
+      final result = await _observationService.submitVoiceLog(
+        File(path),
+        householdId: householdId,
+        careRecipientId: careRecipientId,
+      );
       if (!mounted) return;
       final categories = (result['categories'] as List?)?.join(', ') ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
@@ -84,12 +100,18 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   // or doesn't exist yet (e.g. before the first voice log of the week).
   static const _neutralWeek = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
-      FirebaseFirestore.instance
-          .doc(
-            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
-          )
-          .snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? get _weeklySummaryStream {
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) return null;
+
+    return FirebaseFirestore.instance
+        .doc(
+          'households/$householdId/careRecipients/$careRecipientId/weeklySummaries/${currentWeekKey()}',
+        )
+        .snapshots();
+  }
 
   static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
     final raw = trendSeries?[key] as List?;
@@ -99,7 +121,11 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: SelectedProfile.instance,
+      builder: (context, _) {
+        final name = SelectedProfile.instance.careRecipient?.displayName ?? 'them';
+        return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -108,7 +134,7 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 16),
             const _Header(),
             const SizedBox(height: 28),
-            Text('How did Lola Rosa sleep,\neat and feel today?',
+            Text('How did $name sleep,\neat and feel today?',
                 style: AppTextStyles.heading(fontSize: 26).copyWith(color: Colors.black)),
             const SizedBox(height: 8),
             Text('Speak in your own language. One minute\nis enough.',
@@ -204,6 +230,8 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
       ),
       bottomNavigationBar: const _BottomNav(activeIndex: 2),
     );
+      },
+    );
   }
 }
 
@@ -251,20 +279,28 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
       GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38,
           decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text('LR', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
+          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
       ),
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Lola Rosa', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            Text('82 · speaks Hokkien', style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500)),
+            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            if (recipient != null)
+              Text(
+                [
+                  if (recipient.age != null) '${recipient.age}',
+                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
+                ].join(' · '),
+                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+              ),
           ]),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),

@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
+import 'pages/profile_picker_page.dart';
 import 'pages/prototype_home_page.dart';
 import 'pages/prototype_patient_detail_page.dart';
 import 'pages/prototype_patient_schedule_page.dart';
@@ -21,6 +22,7 @@ final router = GoRouter(
   routes: [
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),
+    GoRoute(path: '/profiles',  builder: (c, s) => const ProfilePickerPage()),
     GoRoute(path: '/home',      builder: (c, s) => const PrototypeHomePage()),
     GoRoute(path: '/ask',       builder: (c, s) => const AskPage()),
     GoRoute(path: '/log',       builder: (c, s) => const PrototypeLogPage()),

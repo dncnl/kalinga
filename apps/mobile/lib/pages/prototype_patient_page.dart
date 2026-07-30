@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/selected_profile.dart';
 import '../theme.dart';
 
 const _conditions = [
@@ -38,11 +39,43 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
   String _selectedLanguage = _languages.first;
   final Set<String> _selectedConditions = {'dementia', 'hypertension'};
 
+  bool _saving = false;
+  String? _error;
+
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Add a name.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      await SelectedProfile.instance.createAndSelect(
+        displayName: name,
+        age: int.tryParse(_ageController.text.trim()),
+        preferredLanguages: [_selectedLanguage],
+        conditions: _selectedConditions.toList(),
+      );
+      if (!mounted) return;
+      context.go('/home');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not save: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -210,11 +243,19 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
 
               const SizedBox(height: 32),
 
+              if (_error != null) ...[
+                Text(
+                  _error!,
+                  style: AppTextStyles.body(fontSize: 13).copyWith(color: _red),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // ── Save and start button ──────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: _saving ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _red,
                     foregroundColor: Colors.white,
@@ -224,12 +265,17 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    'Save and start',
-                    style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                        )
+                      : Text(
+                          'Save and start',
+                          style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
 

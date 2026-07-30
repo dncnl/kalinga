@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/selected_profile.dart';
 import '../theme.dart';
 
 // ── Data models ───────────────────────────────────────────────────────────────
@@ -88,11 +89,15 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   // ── Header ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
+    return ListenableBuilder(
+      listenable: SelectedProfile.instance,
+      builder: (context, _) {
+        final recipient = SelectedProfile.instance.careRecipient;
+        return Row(
       children: [
         // Avatar
         GestureDetector(
-          onTap: () => context.push('/patients/lola-rosa'),
+          onTap: () => context.push('/profiles'),
           child: Container(
             width: 38,
             height: 38,
@@ -102,7 +107,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
             ),
             child: Center(
               child: Text(
-                'LR',
+                recipient?.initials ?? '?',
                 style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(
                   color: Colors.white,
                 ),
@@ -114,24 +119,29 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
         // Name + details
         Expanded(
           child: GestureDetector(
-            onTap: () => context.push('/patients/lola-rosa'),
+            onTap: () => context.push('/profiles'),
             child: Row(
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Lola Rosa',
+                      recipient?.displayName ?? 'Add a profile',
                       style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(
                         color: Colors.black87,
                       ),
                     ),
-                    Text(
-                      '82 · speaks Hokkien',
-                      style: AppTextStyles.body(fontSize: 11).copyWith(
-                        color: Colors.grey.shade500,
+                    if (recipient != null)
+                      Text(
+                        [
+                          if (recipient.age != null) '${recipient.age}',
+                          if (recipient.preferredLanguages.isNotEmpty)
+                            'speaks ${recipient.preferredLanguages.first}',
+                        ].join(' · '),
+                        style: AppTextStyles.body(fontSize: 11).copyWith(
+                          color: Colors.grey.shade500,
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(width: 4),
@@ -159,11 +169,14 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
         ),
       ],
     );
+      },
+    );
   }
 
   // ── Greeting card ──────────────────────────────────────────────────────────
 
   Widget _buildGreetingCard() {
+    final name = SelectedProfile.instance.careRecipient?.displayName ?? 'them';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -205,7 +218,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
               ),
               const SizedBox(height: 6),
               Text(
-                "You haven't logged Lola Rosa\nyet today.",
+                "You haven't logged $name\nyet today.",
                 style: AppTextStyles.body(fontSize: 14).copyWith(
                   color: Colors.grey.shade700,
                   height: 1.5,
