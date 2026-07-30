@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/dev_bypass.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 
@@ -101,7 +102,10 @@ class _AuthPageState extends State<AuthPage> {
 
   // Debug-build-only escape hatch (see class doc comment). '/language',
   // not '/home' — same reasoning as the real-account path in _submit().
-  void _skipDev() => context.go('/language');
+  void _skipDev() {
+    DevBypass.instance.skip();
+    context.go('/language');
+  }
 
   @override
   Widget build(BuildContext context) {
