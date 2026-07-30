@@ -330,23 +330,24 @@ router.post(
     const { householdId, careRecipientId } = req.params;
     const { start, end } = dayBoundsUtc(new Date().toISOString().slice(0, 10));
 
-    // Filtering verificationStatus in memory rather than with a second
-    // Firestore `where` — combining it with the `status` equality filter
-    // needs a composite index, and per-recipient medication counts are
-    // small enough that this isn't worth provisioning one for.
-    const medsSnap = await firebase.db
-      .collection(`households/${householdId}/careRecipients/${careRecipientId}/medications`)
-      .where('status', '==', 'active')
-      .get();
-    const confirmedMedsDocs = medsSnap.docs.filter((doc) => doc.data().verificationStatus !== 'unverified');
-
     const eventsRef = firebase.db.collection(
       `households/${householdId}/careRecipients/${careRecipientId}/medicationEvents`,
     );
-    const existingSnap = await eventsRef
-      .where('scheduledAt', '>=', start)
-      .where('scheduledAt', '<', end)
-      .get();
+
+    // Independent reads (different collections, no data dependency) --
+    // fetch in parallel instead of one after the other.
+    const [medsSnap, existingSnap] = await Promise.all([
+      // Filtering verificationStatus in memory rather than with a second
+      // Firestore `where` — combining it with the `status` equality filter
+      // needs a composite index, and per-recipient medication counts are
+      // small enough that this isn't worth provisioning one for.
+      firebase.db
+        .collection(`households/${householdId}/careRecipients/${careRecipientId}/medications`)
+        .where('status', '==', 'active')
+        .get(),
+      eventsRef.where('scheduledAt', '>=', start).where('scheduledAt', '<', end).get(),
+    ]);
+    const confirmedMedsDocs = medsSnap.docs.filter((doc) => doc.data().verificationStatus !== 'unverified');
     const existingKeys = new Set(
       existingSnap.docs.map((doc) => `${doc.data().medicationId}|${doc.data().scheduledAt.toDate().toISOString()}`),
     );

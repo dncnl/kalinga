@@ -51,12 +51,18 @@ class _MedsPageState extends State<MedsPage> {
       _error = null;
     });
     try {
-      final meds = await _medicationService.listMedications(scope.householdId, scope.careRecipientId);
-      final events = await _medicationService.todaysEvents(scope.householdId, scope.careRecipientId);
+      // listMedications and todaysEvents don't depend on each other's
+      // result -- run them in parallel instead of one-after-the-other.
+      // (todaysEvents still does its own internal generate-then-list
+      // round trip, which has to stay sequential.)
+      final results = await Future.wait([
+        _medicationService.listMedications(scope.householdId, scope.careRecipientId),
+        _medicationService.todaysEvents(scope.householdId, scope.careRecipientId),
+      ]);
       if (!mounted) return;
       setState(() {
-        _meds = meds;
-        _events = events;
+        _meds = results[0] as List<Medication>;
+        _events = results[1] as List<MedicationEvent>;
       });
     } catch (e) {
       if (!mounted) return;
