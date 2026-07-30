@@ -220,13 +220,54 @@ new one.
 
 ## Progress
 
-- [ ] Backend edit/delete care recipient
-- [ ] Backend careRecipientLocations lookup
-- [ ] Backend invitation system (create / fetch / accept)
-- [ ] Backend multi-household membership + switch
+- [x] Backend edit/delete care recipient
+      (`PATCH .../care-recipients/:id` — updates only provided fields,
+      merges into existing `careProfile` rather than replacing it wholesale.
+      `DELETE .../care-recipients/:id` — soft delete only (`status:
+      'archived'`, per the schema's own soft-delete mixin), never a hard
+      delete. Confirmed live: PATCHed name showed up correctly downstream
+      in an invite lookup; DELETEd recipient correctly dropped out of the
+      active-recipients list.)
+- [x] Backend careRecipientLocations lookup
+      (Written alongside every care-recipient creation. Confirmed live as
+      part of the household-resolution endpoint below.)
+- [x] Backend invitation system (create / fetch / accept)
+      (`POST /households/:householdId/invitations`,
+      `GET /invites/:token` (public, no auth — the invitee has no account
+      yet), `POST /invites/:token/accept`. `GET /care-recipients/:id/household`
+      resolves which household a recipient belongs to for a caller who
+      only has the recipient id (the invite-link scenario) — checks
+      membership itself before answering, confirmed live that a random
+      unrelated user gets a real 403, not just relies on obscurity.
+      Family-role accept creates only a household membership; caregiver-role
+      accept (with a `careRecipientId`) also creates the per-recipient
+      assignment doc. Both confirmed live: the family member's household
+      membership doc landed with `role: 'family'`/`status: 'active'` (which
+      `firestore.rules`' `isPrivilegedHouseholdMember` already accepts for
+      read access — no further work needed there, see the "key discovery"
+      note above), and a second caregiver could immediately call the
+      voice-log upload-url endpoint on the shared recipient.
+      33 new unit tests across `households.test.js`/`invites.test.js`,
+      all mocked, plus an 11-step live smoke test covering the full chain:
+      bootstrap → create → patch → invite → fetch invite → accept (as a
+      *second, separate* Firebase identity) → verify membership → resolve
+      household → confirm a stranger is rejected → second-caregiver invite
+      → confirm voice-log access → household switch → delete. All 11
+      passed against real Firebase.
+      Minor cosmetic note, not a bug: `inviterName` fell back to "A
+      caregiver" in the live test because the test caregiver used
+      anonymous auth (no Firebase Auth display name set) — a real
+      registered caregiver would show their actual name.)
+- [x] Backend multi-household membership + switch
+      (`householdMemberships/{uid}` reshaped from a single `householdId`
+      to `{ householdIds: [...], activeHouseholdId }`. `bootstrap` reads/
+      writes the new shape. `POST /households/switch` and
+      `GET /households/mine` (lists every household the caller belongs to,
+      with names, for a switcher UI) both added and live-tested.)
 - [ ] Mobile InviteService wired to real endpoints
 - [ ] Mobile invite-family/caregiver UI
 - [ ] Mobile household switcher UI
 - [ ] Mobile edit/delete profile UI
 - [ ] Mobile remaining 6 screens' headers wired
-- [ ] Live test
+- [ ] Live test (mobile UI side — backend chain above already fully
+      live-tested)
