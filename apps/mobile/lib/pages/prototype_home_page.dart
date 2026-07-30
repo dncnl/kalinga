@@ -261,15 +261,20 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   // ── Quick actions ──────────────────────────────────────────────────────────
 
   Widget _buildQuickActions() {
-    const actions = [
-      _QuickAction(
+    // Schedules' route embeds a patient id for URL shape, but
+    // PrototypePatientSchedulePage actually reads SelectedProfile.instance,
+    // not this param — 'lola-rosa' was a leftover hardcoded placeholder
+    // that never matched a real recipient. Use the real selected id.
+    final recipientId = SelectedProfile.instance.careRecipient?.id ?? 'none';
+    final actions = [
+      const _QuickAction(
         icon: Icons.chat_bubble_outline_rounded,
         label: 'Ask',
         bg: Color(0xFFFFD5CF),
         iconColor: Color(0xFFEF3E23),
         route: '/ask',
       ),
-      _QuickAction(
+      const _QuickAction(
         icon: Icons.medication_outlined,
         label: 'Meds',
         bg: Color(0xFFD0EFFE),
@@ -280,11 +285,11 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       _QuickAction(
         icon: Icons.schedule_rounded,
         label: 'Schedules',
-        bg: Color(0xFFFFF3C4),
-        iconColor: Color(0xFFD97706),
-        route: '/patients/lola-rosa/schedules',
+        bg: const Color(0xFFFFF3C4),
+        iconColor: const Color(0xFFD97706),
+        route: '/patients/$recipientId/schedules',
       ),
-      _QuickAction(
+      const _QuickAction(
         icon: Icons.help_outline_rounded,
         label: 'Help',
         bg: Color(0xFFEEEEEE),

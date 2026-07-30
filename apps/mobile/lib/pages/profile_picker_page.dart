@@ -218,7 +218,17 @@ class _ProfileTile extends StatelessWidget {
           if (selected) const Icon(Icons.check_circle, color: _teal, size: 22),
           const SizedBox(width: 4),
           IconButton(
-            onPressed: () => context.push('/patients/${recipient.id}'),
+            onPressed: () async {
+              // Detail/schedule pages read SelectedProfile.instance rather
+              // than their own patientId route param (see
+              // PrototypePatientDetailPage's doc comment) — this button was
+              // navigating straight to /patients/:id without selecting
+              // [recipient] first, so tapping "view details" on anyone
+              // other than the already-selected profile showed the WRONG
+              // patient's name/schedule. Select first, then navigate.
+              await SelectedProfile.instance.select(recipient);
+              if (context.mounted) context.push('/patients/${recipient.id}');
+            },
             icon: Icon(Icons.info_outline_rounded, color: Colors.grey.shade400, size: 20),
             tooltip: 'View details',
             padding: EdgeInsets.zero,
