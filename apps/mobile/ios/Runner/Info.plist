@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Kalinga needs microphone access to record your voice log about the elder's day.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Kalinga needs camera access to scan medication labels.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
