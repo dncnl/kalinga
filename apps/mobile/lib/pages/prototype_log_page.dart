@@ -1,6 +1,15 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+
+import '../api_config.dart';
+import '../services/observation_service.dart';
 import '../theme.dart';
+import '../week_key.dart';
 
 class PrototypeLogPage extends StatefulWidget {
   const PrototypeLogPage({super.key});
@@ -14,10 +23,79 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   static const _amber = Color(0xFFFBBF24);
   static const _red = Color(0xFFEF3E23);
   bool _isHolding = false;
+  bool _isProcessing = false;
 
-  static const _sleepData = [0.7, 0.9, 0.6, 0.8, 0.7, 0.5, 0.75];
-  static const _foodData  = [0.5, 0.8, 0.4, 0.6, 0.3, 0.7, 0.5];
-  static const _moodData  = [0.4, 0.7, 0.5, 0.6, 0.4, 0.8, 0.6];
+  final _recorder = AudioRecorder();
+  final _observationService = const ObservationService();
+
+  @override
+  void dispose() {
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (!await _recorder.hasPermission()) return;
+
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.wav';
+
+    // WAV/LINEAR16, not AAC: Google Cloud Speech-to-Text (apps/api) doesn't
+    // support AAC/M4A at all. Sample rate must match transcribe.js's
+    // sampleRateHertz.
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+      path: path,
+    );
+    setState(() => _isHolding = true);
+  }
+
+  Future<void> _stopRecordingAndSubmit() async {
+    final path = await _recorder.stop();
+    setState(() {
+      _isHolding = false;
+      _isProcessing = path != null;
+    });
+    if (path == null) return;
+
+    try {
+      final result = await _observationService.submitVoiceLog(File(path));
+      if (!mounted) return;
+      final categories = (result['categories'] as List?)?.join(', ') ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logged: $categories')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save voice log: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    await _recorder.cancel();
+    setState(() => _isHolding = false);
+  }
+
+  // Neutral placeholder shown while the real weeklySummaries doc is loading
+  // or doesn't exist yet (e.g. before the first voice log of the week).
+  static const _neutralWeek = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
+      FirebaseFirestore.instance
+          .doc(
+            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
+          )
+          .snapshots();
+
+  static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
+    final raw = trendSeries?[key] as List?;
+    if (raw == null || raw.isEmpty) return _neutralWeek;
+    return raw.map((v) => (v as num).toDouble()).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,30 +116,88 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 32),
             Center(child: Column(children: [
               GestureDetector(
-                onTapDown: (_) => setState(() => _isHolding = true),
-                onTapUp: (_) => setState(() => _isHolding = false),
-                onTapCancel: () => setState(() => _isHolding = false),
+                onLongPressStart: _isProcessing ? null : (_) => _startRecording(),
+                onLongPressEnd: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
+                onLongPressCancel: _isProcessing ? null : () => _cancelRecording(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: _isHolding ? 88 : 80, height: _isHolding ? 88 : 80,
                   decoration: BoxDecoration(
-                    color: _amber, shape: BoxShape.circle,
-                    boxShadow: _isHolding ? [BoxShadow(color: _amber.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)] : [],
+                    color: _isProcessing
+                        ? Colors.grey.shade400
+                        : _isHolding
+                            ? _red
+                            : _amber,
+                    shape: BoxShape.circle,
+                    boxShadow: _isHolding
+                        ? [BoxShadow(color: _red.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)]
+                        : [],
                   ),
-                  child: const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
+                  child: _isProcessing
+                      ? const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                        )
+                      : const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
                 ),
               ),
               const SizedBox(height: 10),
-              Text('Hold to speak', style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600)),
+              Text(
+                _isProcessing ? 'Saving...' : _isHolding ? 'Recording...' : 'Hold to speak',
+                style: AppTextStyles.body(fontSize: 13).copyWith(
+                  color: _isHolding ? _red : Colors.grey.shade600,
+                  fontWeight: _isHolding ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
             ])),
             const SizedBox(height: 32),
             Text('LAST 7 DAYS', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
             const SizedBox(height: 16),
-            _ChartRow(label: 'Sleep',       unit: 'hours',   value: '6',   data: _sleepData, color: _amber),
-            const SizedBox(height: 14),
-            _ChartRow(label: 'Food\neaten', unit: 'of meal', value: '0.5', data: _foodData,  color: _teal),
-            const SizedBox(height: 14),
-            _ChartRow(label: 'Mood',        unit: 'score',   value: '3',   data: _moodData,  color: _teal),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: _weeklySummaryStream,
+              builder: (context, snapshot) {
+                final trendSeries =
+                    snapshot.data?.data()?['trendSeries'] as Map<String, dynamic>?;
+                final sleepData = _series(trendSeries, 'sleep');
+                final foodData = _series(trendSeries, 'food');
+                final moodData = _series(trendSeries, 'mood');
+
+                // Week series is anchored to Sunday (index 0). Today's index is
+                // how many days since the most recent Sunday (Sun=0, Mon=1 … Sat=6).
+                // Dart weekday: Mon=1…Sun=7 → Sun%7==0, others match JS getUTCDay.
+                final todayIndex = (DateTime.now().toUtc().weekday % 7)
+                    .clamp(0, sleepData.length - 1);
+
+                return Column(children: [
+                  _ChartRow(
+                    label: 'Sleep',
+                    unit: 'quality',
+                    value: '${(sleepData[todayIndex] * 100).round()}%',
+                    data: sleepData,
+                    color: _amber,
+                    todayIndex: todayIndex,
+                  ),
+                  const SizedBox(height: 14),
+                  _ChartRow(
+                    label: 'Food\neaten',
+                    unit: 'of usual',
+                    value: '${(foodData[todayIndex] * 100).round()}%',
+                    data: foodData,
+                    color: _teal,
+                    todayIndex: todayIndex,
+                  ),
+                  const SizedBox(height: 14),
+                  _ChartRow(
+                    label: 'Mood',
+                    unit: 'score',
+                    value: '${(moodData[todayIndex] * 100).round()}%',
+                    data: moodData,
+                    color: _teal,
+                    todayIndex: todayIndex,
+                  ),
+                ]);
+              },
+            ),
             const SizedBox(height: 32),
           ]),
         ),
@@ -75,7 +211,8 @@ class _ChartRow extends StatelessWidget {
   final String label, unit, value;
   final List<double> data;
   final Color color;
-  const _ChartRow({required this.label, required this.unit, required this.value, required this.data, required this.color});
+  final int todayIndex;
+  const _ChartRow({required this.label, required this.unit, required this.value, required this.data, required this.color, required this.todayIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -84,13 +221,13 @@ class _ChartRow extends StatelessWidget {
       Expanded(child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(data.length, (i) {
-          final isLast = i == data.length - 1;
+          final isToday = i == todayIndex;
           return Expanded(child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Container(
               height: 40 * data[i],
               decoration: BoxDecoration(
-                color: isLast ? color : color.withValues(alpha: 0.35 + i * 0.08),
+                color: isToday ? color : color.withValues(alpha: 0.25 + i * 0.05),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

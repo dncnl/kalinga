@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../api_config.dart';
 import '../theme.dart';
+import '../week_key.dart';
 
 /// Read-only family/doctor view — separate surface, all text in Mandarin.
 class ViewerPage extends StatelessWidget {
@@ -9,8 +12,23 @@ class ViewerPage extends StatelessWidget {
   static const _amber = Color(0xFFFBBF24);
   static const _teal  = Color(0xFF2BBFB3);
 
-  static const _sleepData = [0.7, 0.9, 0.6, 0.8, 0.7, 0.5, 0.75];
-  static const _foodData  = [0.5, 0.8, 0.4, 0.6, 0.3, 0.7, 0.5];
+  // Neutral placeholder while loading / before any data exists for the week.
+  static const _neutralWeek = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+
+  static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
+    final raw = trendSeries?[key] as List?;
+    if (raw == null || raw.isEmpty) return _neutralWeek;
+    return raw.map((v) => (v as num).toDouble()).toList();
+  }
+
+  // viewerId isn't wired to a real household/careRecipient lookup yet — same
+  // hardcoded stopgap as prototype_log_page.dart (see PLAN.md).
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
+      FirebaseFirestore.instance
+          .doc(
+            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
+          )
+          .snapshots();
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +97,33 @@ class ViewerPage extends StatelessWidget {
             const SizedBox(height: 24),
 
             // ── Charts ──────────────────────────────────────────────────
-            _ChartRowZh(label: '睡眠', unit: '小時', value: '6', data: _sleepData, color: _amber),
-            const SizedBox(height: 14),
-            _ChartRowZh(label: '進食', unit: '比例', value: '0.5', data: _foodData, color: _teal),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: _weeklySummaryStream,
+              builder: (context, snapshot) {
+                final trendSeries =
+                    snapshot.data?.data()?['trendSeries'] as Map<String, dynamic>?;
+                final sleepData = _series(trendSeries, 'sleep');
+                final foodData = _series(trendSeries, 'food');
+
+                return Column(children: [
+                  _ChartRowZh(
+                    label: '睡眠',
+                    unit: '%',
+                    value: '${(sleepData.last * 100).round()}',
+                    data: sleepData,
+                    color: _amber,
+                  ),
+                  const SizedBox(height: 14),
+                  _ChartRowZh(
+                    label: '進食',
+                    unit: '%',
+                    value: '${(foodData.last * 100).round()}',
+                    data: foodData,
+                    color: _teal,
+                  ),
+                ]);
+              },
+            ),
 
             const SizedBox(height: 32),
 

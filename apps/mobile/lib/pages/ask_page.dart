@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../services/rag_service.dart';
 import '../theme.dart';
 
 class AskPage extends StatefulWidget {
@@ -14,14 +15,41 @@ class _AskPageState extends State<AskPage> {
   static const _red = Color(0xFFEF3E23);
 
   final _controller = TextEditingController();
+  final _ragService = const RagService();
   static const _prompts = [
     'She is not eating',
     'Chest pain and hard to breathe',
     'She fell down',
   ];
 
+  bool _asking = false;
+  RagAnswer? _answer;
+  String? _error;
+
   @override
   void dispose() { _controller.dispose(); super.dispose(); }
+
+  Future<void> _submit() async {
+    final question = _controller.text.trim();
+    if (question.isEmpty || _asking) return;
+
+    setState(() {
+      _asking = true;
+      _answer = null;
+      _error = null;
+    });
+
+    try {
+      final result = await _ragService.ask(question);
+      if (!mounted) return;
+      setState(() => _answer = result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _asking = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +96,61 @@ class _AskPageState extends State<AskPage> {
                 ),
               ),
             )),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _asking ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _teal,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _asking
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : Text('Ask', style: AppTextStyles.bodyMedium(fontSize: 15)),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: const Color(0xFFFFE9E5), borderRadius: BorderRadius.circular(14)),
+                child: Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),
+              ),
+            ],
+            if (_answer != null) ...[
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: _teal, width: 1.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_answer!.answer, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
+                  if (_answer!.sources.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text('SOURCES', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    ..._answer!.sources.map((s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '[${s.n}] ${s.title} — ${s.publisher}',
+                        style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade600),
+                      ),
+                    )),
+                  ],
+                ]),
+              ),
+            ],
             const SizedBox(height: 24),
           ]),
         ),
