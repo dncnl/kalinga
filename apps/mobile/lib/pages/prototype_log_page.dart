@@ -71,15 +71,19 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     }
 
     try {
-      final result = await _observationService.submitVoiceLog(
+      // Returns as soon as processing has started server-side, not once
+      // it finishes (see observation_service.dart) — no category summary
+      // to show yet, just confirm the recording was received. The chart
+      // below updates on its own via the weeklySummaries listener once
+      // the background job's rollup completes.
+      await _observationService.submitVoiceLog(
         File(path),
         householdId: householdId,
         careRecipientId: careRecipientId,
       );
       if (!mounted) return;
-      final categories = (result['categories'] as List?)?.join(', ') ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logged: $categories')),
+        const SnackBar(content: Text('Logged — processing...')),
       );
     } catch (e) {
       if (!mounted) return;

@@ -3,8 +3,7 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 
 const firebase = require('../../src/firebase');
-const { client: speechClient } = require('../../src/lib/transcribe');
-const { client: translateClient } = require('../../src/lib/translate');
+const processObservationJobLib = require('../../src/lib/processObservationJob');
 const app = require('../../src/app');
 
 const ROUTE = '/households/h1/care-recipients/r1/observations/obs-1/process';
@@ -23,42 +22,9 @@ function mockAssignment(t, data) {
     }
     return {
       get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }),
-      set: async () => {},
+      update: async () => {},
     };
   });
-}
-
-function mockPipelineSuccess(t) {
-  t.mock.method(firebase, 'getBucket', () => ({ name: 'kalinga-bc97f.firebasestorage.app' }));
-  t.mock.method(speechClient, 'recognize', async () => [
-    { results: [{ alternatives: [{ transcript: 'Natulog siya nang mahusay.' }] }] },
-  ]);
-  t.mock.method(translateClient, 'translateText', async () => [
-    { translations: [{ translatedText: '他睡得很好。' }] },
-  ]);
-  t.mock.method(global, 'fetch', async () => ({
-    ok: true,
-    json: async () => ({
-      choices: [
-        {
-          message: {
-            tool_calls: [
-              {
-                function: {
-                  arguments: JSON.stringify({
-                    categories: ['sleep'],
-                    comparisonToUsual: 'same',
-                    structuredObservation: { summary: 'Slept well.' },
-                    safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
-                  }),
-                },
-              },
-            ],
-          },
-        },
-      ],
-    }),
-  }));
 }
 
 test('rejects requests with no auth token', async () => {
@@ -115,21 +81,30 @@ test('404s when no upload was recorded for this observation', async (t) => {
   assert.equal(res.status, 404);
 });
 
-test('runs the full pipeline and saves the observation for an assigned caregiver', async (t) => {
+// The actual pipeline (transcribe/translate/extract/rollup) now runs in
+// processObservationJob, tested separately in test/lib/processObservationJob.test.js
+// -- this route's only job is to validate, flip status to 'processing', respond
+// fast, and hand off to that job with the right arguments.
+test('responds immediately with status "processing" and hands off to the background job', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
-  mockPipelineSuccess(t);
 
-  let savedDoc;
+  let updatedDoc;
   t.mock.method(firebase.db, 'doc', (path) => {
     if (path.includes('/assignments/')) {
       return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
     }
     return {
       get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }),
-      set: async (doc) => {
-        savedDoc = doc;
-      },
+      update: async (data) => { updatedDoc = data; },
     };
+  });
+
+  let jobArgs;
+  let resolveJob;
+  const jobStarted = new Promise((resolve) => { resolveJob = resolve; });
+  t.mock.method(processObservationJobLib, 'processObservationJob', async (args) => {
+    jobArgs = args;
+    resolveJob();
   });
 
   const res = await request(app)
@@ -138,29 +113,31 @@ test('runs the full pipeline and saves the observation for an assigned caregiver
     .send({ locale: 'fil' });
 
   assert.equal(res.status, 200);
-  assert.equal(res.body.transcript, 'Natulog siya nang mahusay.');
-  assert.equal(res.body.translatedText, '他睡得很好。');
-  assert.deepEqual(res.body.categories, ['sleep']);
+  assert.deepEqual(res.body, { observationId: 'obs-1', status: 'processing' });
+  assert.equal(updatedDoc.status, 'processing');
 
-  assert.equal(savedDoc.authorUid, 'caregiver-1');
-  assert.equal(savedDoc.originalText, 'Natulog siya nang mahusay.');
-  assert.equal(savedDoc.translations['zh-TW'].text, '他睡得很好。');
-  assert.equal(
-    savedDoc.originalAudioAssetId,
-    'households/h1/careRecipients/r1/observations/obs-1/audio.m4a',
-  );
+  await jobStarted; // background job is fired-and-forgotten -- wait for it so the test doesn't exit early
+  assert.equal(jobArgs.householdId, 'h1');
+  assert.equal(jobArgs.careRecipientId, 'r1');
+  assert.equal(jobArgs.observationId, 'obs-1');
+  assert.equal(jobArgs.uid, 'caregiver-1');
+  assert.equal(jobArgs.locale, 'fil');
+  assert.equal(jobArgs.storagePath, 'households/h1/careRecipients/r1/observations/obs-1/audio.m4a');
 });
 
-test('returns 422 when no speech is detected, without calling translate/extract', async (t) => {
+test('a background job failure is caught and logged, never crashes the process', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
   mockAssignment(t, { status: 'active' });
-  t.mock.method(firebase, 'getBucket', () => ({ name: 'bucket' }));
-  t.mock.method(speechClient, 'recognize', async () => [{ results: [] }]);
+  t.mock.method(processObservationJobLib, 'processObservationJob', async () => {
+    throw new Error('boom');
+  });
 
-  let translateCalled = false;
-  t.mock.method(translateClient, 'translateText', async () => {
-    translateCalled = true;
-    return [{ translations: [{ translatedText: '' }] }];
+  let loggedArgs;
+  let resolveLog;
+  const logged = new Promise((resolve) => { resolveLog = resolve; });
+  t.mock.method(console, 'error', (...args) => {
+    loggedArgs = args;
+    resolveLog();
   });
 
   const res = await request(app)
@@ -168,29 +145,7 @@ test('returns 422 when no speech is detected, without calling translate/extract'
     .set('Authorization', 'Bearer token')
     .send({ locale: 'fil' });
 
-  assert.equal(res.status, 422);
-  assert.equal(res.body.error, 'No speech detected in recording');
-  assert.equal(translateCalled, false);
-});
-
-test('returns 502 when the pipeline throws', async (t) => {
-  mockAuthedUser(t, 'caregiver-1');
-  t.mock.method(firebase.db, 'doc', (path) => {
-    if (path.includes('/assignments/')) {
-      return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
-    }
-    return { get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }) };
-  });
-  t.mock.method(firebase, 'getBucket', () => ({ name: 'bucket' }));
-  t.mock.method(speechClient, 'recognize', async () => {
-    throw new Error('STT quota exceeded');
-  });
-
-  const res = await request(app)
-    .post(ROUTE)
-    .set('Authorization', 'Bearer token')
-    .send({ locale: 'fil' });
-
-  assert.equal(res.status, 502);
-  assert.match(res.body.detail, /STT quota exceeded/);
+  assert.equal(res.status, 200);
+  await logged;
+  assert.match(loggedArgs[0], /unhandled error from processObservationJob/);
 });

@@ -4,18 +4,24 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../api_config.dart';
-import '../week_key.dart';
 import 'auth_token.dart';
 
 class ObservationService {
   const ObservationService();
 
-  /// Records → uploads → processes one voice log for [careRecipientId] in
-  /// [householdId] — both must come from the caller's currently selected
-  /// profile (SelectedProfile), not hardcoded, so every log lands against
-  /// the right elder. Returns the extraction result (categories,
-  /// comparisonToUsual, safetyAssessment, etc).
-  Future<Map<String, dynamic>> submitVoiceLog(
+  /// Records → uploads → kicks off processing for one voice log for
+  /// [careRecipientId] in [householdId] — both must come from the caller's
+  /// currently selected profile (SelectedProfile), not hardcoded, so every
+  /// log lands against the right elder.
+  ///
+  /// Returns as soon as the upload is confirmed and processing has started
+  /// server-side — NOT once transcription/extraction/rollup finish. Those
+  /// (Speech-to-Text + LLM extraction) were slow enough that waiting for
+  /// the full result before showing "Logged" made this feel stuck; the
+  /// backend now runs that as a background job (see apps/api's
+  /// processObservationJob.js) and updates the observation doc + the chart
+  /// (via the existing weeklySummaries Firestore listener) once it's done.
+  Future<void> submitVoiceLog(
     File audioFile, {
     required String householdId,
     required String careRecipientId,
@@ -61,48 +67,7 @@ class ObservationService {
       body: jsonEncode({'locale': demoLocale}),
     );
     if (processRes.statusCode != 200) {
-      throw Exception('Failed to process observation: ${processRes.body}');
+      throw Exception('Failed to start processing observation: ${processRes.body}');
     }
-
-    // Trigger rollup in the background — don't await it so the UI
-    // shows "Logged" immediately. The chart updates via Firestore
-    // real-time listener once the rollup finishes.
-    _triggerRollup(token, householdId: householdId, careRecipientId: careRecipientId);
-
-    return jsonDecode(processRes.body) as Map<String, dynamic>;
-  }
-
-  Future<void> _triggerRollup(
-    String token, {
-    required String householdId,
-    required String careRecipientId,
-  }) async {
-    final headers = {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
-    final today = dateKeyOf(DateTime.now());
-    final weekStart = currentWeekStartUtc();
-
-    // Run daily and weekly rollup in parallel.
-    await Future.wait([
-      http.post(
-        Uri.parse(
-          '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/rollup/daily',
-        ),
-        headers: headers,
-        body: jsonEncode({'dateKey': today}),
-      ),
-      http.post(
-        Uri.parse(
-          '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/rollup/weekly',
-        ),
-        headers: headers,
-        body: jsonEncode({
-          'weekKey': currentWeekKey(),
-          'periodStart': weekStart.toIso8601String(),
-        }),
-      ),
-    ]);
   }
 }
