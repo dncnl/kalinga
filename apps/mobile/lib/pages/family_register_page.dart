@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/invite_service.dart';
+import '../state/session_role.dart';
 import '../theme.dart';
 
 /// Screen 16 · Family registration (`/invite/:token`).
-/// Deep link from the invite email. Only name + password are typed; email
-/// comes from the token. On success the family viewer lands on screen 17
-/// (`/viewer/:id`), read-only, in zh-TW.
+/// Reached from FamilyCodePage after the typed join code validates. The
+/// code carries no invitee identity (see invites.js — pure shared secret),
+/// so the family member types their own email along with name + password.
+/// On success the family viewer lands on screen 17 (`/viewer/:id`),
+/// read-only, in zh-TW.
 class FamilyRegisterPage extends StatefulWidget {
   final String token;
   const FamilyRegisterPage({super.key, required this.token});
@@ -24,6 +27,7 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
   final _inviteService = InviteService();
   late final Future<InviteDetails> _inviteFuture;
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _submitting = false;
   String? _error;
@@ -37,16 +41,22 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _submit(InviteDetails invite) async {
     final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (name.isEmpty) {
       setState(() => _error = '請輸入您的名字 · Enter your name.');
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = '請輸入有效的電子郵件 · Enter a valid email.');
       return;
     }
     if (password.length < 6) {
@@ -61,13 +71,23 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
 
     try {
       final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: invite.email,
+        email: email,
         password: password,
       );
       await credential.user?.updateDisplayName(name);
       await _inviteService.acceptInvite(token: widget.token, viewerUid: credential.user!.uid);
+      // Family surface from now on — keeps app restarts off the caregiver
+      // bootstrap path (see SessionRole docs).
+      await SessionRole.instance.set(SessionRole.family);
       if (!mounted) return;
-      context.go('/viewer/${invite.patientId}');
+      final patientId = invite.patientId;
+      if (patientId != null) {
+        context.go('/viewer/$patientId');
+      } else {
+        // Invite wasn't scoped to one recipient — let the welcome flow's
+        // family resume resolve which recipient(s) this account can view.
+        context.go('/');
+      }
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message ?? '發生錯誤，請再試一次 · Something went wrong. Try again.');
     } catch (_) {
@@ -131,10 +151,13 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('FAMILY INVITE · FROM THE EMAIL LINK',
+              Text('FAMILY INVITE · FROM YOUR CODE',
                   style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
               const SizedBox(height: 4),
-              Text('${invite.inviterName} invited you to read ${invite.patientName}\'s daily logs.',
+              Text(
+                  invite.patientName != null
+                      ? '${invite.inviterName} invited you to read ${invite.patientName}\'s daily logs.'
+                      : '${invite.inviterName} invited you to read their daily logs.',
                   style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600, height: 1.4)),
             ]),
           ),
@@ -151,21 +174,21 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
 
           const SizedBox(height: 28),
 
-          _FieldLabel('電子郵件 · Email'),
-          const SizedBox(height: 8),
-          _DisabledField(value: invite.email),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text('From your invite. It cannot be changed.',
-                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
-          ),
-
-          const SizedBox(height: 20),
-
           _FieldLabel('您的名字 · Your name'),
           const SizedBox(height: 8),
           _InputField(controller: _nameController, hint: '陳美玲'),
+
+          const SizedBox(height: 20),
+
+          _FieldLabel('電子郵件 · Email'),
+          const SizedBox(height: 8),
+          _InputField(controller: _emailController, hint: 'meiling@email.com'),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('You\'ll use this to sign in later.',
+                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+          ),
 
           const SizedBox(height: 20),
 
@@ -229,25 +252,6 @@ class _FieldLabel extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(text, style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
-    );
-  }
-}
-
-class _DisabledField extends StatelessWidget {
-  final String value;
-  const _DisabledField({required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(value, style: AppTextStyles.body(fontSize: 15).copyWith(color: Colors.grey.shade500)),
     );
   }
 }

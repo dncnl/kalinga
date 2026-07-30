@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../services/family_viewer_service.dart';
 import '../state/dev_bypass.dart';
 import '../state/selected_profile.dart';
+import '../state/session_role.dart';
 import '../theme.dart';
 import '../widgets/back_button.dart';
 
@@ -109,6 +110,7 @@ class _AuthPageState extends State<AuthPage> {
       // before — re-run bootstrap for it, or every household-scoped call
       // 403s until the app restarts. A no-op re-sync when linking kept the
       // same UID.
+      await SessionRole.instance.set(SessionRole.caregiver);
       await SelectedProfile.instance.initialize();
       if (!mounted) return;
       // Not '/home' directly: a brand-new account still needs onboarding
@@ -138,6 +140,10 @@ class _AuthPageState extends State<AuthPage> {
   Future<void> _routeFamilyMemberAfterLogin() async {
     try {
       final recipients = await _familyViewerService.resolveViewableRecipients();
+      // Persist the surface even for the zero-recipient case — this account
+      // signed in through the family fork, and restarting the app must not
+      // route it through the caregiver bootstrap path.
+      await SessionRole.instance.set(SessionRole.family);
       if (!mounted) return;
 
       if (recipients.isEmpty) {

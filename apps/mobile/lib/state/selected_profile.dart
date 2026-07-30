@@ -80,6 +80,22 @@ class SelectedProfile extends ChangeNotifier {
     await prefs.setString(_prefsCareRecipientIdKey, recipient.id);
   }
 
+  /// Sign-out support: wipe in-memory and persisted profile state so the
+  /// next account (possibly a different person on a shared phone) never
+  /// sees or writes against the previous account's household/recipient.
+  Future<void> reset() async {
+    householdId = null;
+    careRecipient = null;
+    careRecipients = [];
+    isLoading = false;
+    error = null;
+    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsHouseholdIdKey);
+    await prefs.remove(_prefsCareRecipientIdKey);
+  }
+
   Future<void> createAndSelect({
     required String displayName,
     int? age,

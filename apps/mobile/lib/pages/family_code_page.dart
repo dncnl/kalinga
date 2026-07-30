@@ -36,11 +36,10 @@ class _FamilyCodePageState extends State<FamilyCodePage> {
   }
 
   Future<void> _submit() async {
-    // The backend always generates lowercase hex tokens and resolves them
-    // via an exact-match Firestore doc-id lookup — normalize defensively
-    // in case a keyboard auto-capitalized the first character or the user
-    // pasted with stray whitespace.
-    final code = _codeController.text.trim().toLowerCase();
+    // Codes are 8 chars from an uppercase alphabet with lookalikes removed
+    // (see invites.js CODE_ALPHABET); the backend normalizes case and
+    // whitespace itself, so just trim here and let it match.
+    final code = _codeController.text.trim();
 
     if (code.isEmpty) {
       setState(() => _error = '請輸入照顧者提供給您的代碼 · Enter the code the caregiver shared with you.');
@@ -118,10 +117,10 @@ class _FamilyCodePageState extends State<FamilyCodePage> {
                 controller: _codeController,
                 autocorrect: false,
                 enableSuggestions: false,
-                textCapitalization: TextCapitalization.none,
+                textCapitalization: TextCapitalization.characters,
                 style: AppTextStyles.body(fontSize: 15).copyWith(color: Colors.black87),
                 decoration: InputDecoration(
-                  hintText: 'e.g. 4f9c2a...',
+                  hintText: 'e.g. ABCD2345',
                   hintStyle: AppTextStyles.body(fontSize: 15).copyWith(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.white,

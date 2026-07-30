@@ -38,25 +38,12 @@ class _InviteSheetState extends State<_InviteSheet> {
   static const _red = Color(0xFFEF3E23);
 
   final _inviteService = InviteService();
-  final _emailController = TextEditingController();
   String _role = 'family';
   bool _creating = false;
   String? _error;
   String? _code;
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
-
   Future<void> _create() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter a valid email.');
-      return;
-    }
-
     final householdId = SelectedProfile.instance.householdId;
     if (householdId == null) {
       setState(() => _error = 'No household — try again after the app finishes loading.');
@@ -69,13 +56,12 @@ class _InviteSheetState extends State<_InviteSheet> {
     });
 
     try {
-      final token = await _inviteService.createInvite(
+      final code = await _inviteService.createInvite(
         householdId: householdId,
         intendedRole: _role,
-        invitedEmail: email,
         careRecipientId: widget.recipient.id,
       );
-      setState(() => _code = token);
+      setState(() => _code = code);
     } catch (e) {
       setState(() => _error = 'Could not create invite: $e');
     } finally {
@@ -118,18 +104,9 @@ class _InviteSheetState extends State<_InviteSheet> {
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                hintText: 'their@email.com',
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.all(16),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-              ),
-            ),
+            // No email field: the backend mints a pure shared-secret join
+            // code (b10bcd9) not tied to any invitee identity — collecting
+            // an email here would imply something is sent to it.
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),

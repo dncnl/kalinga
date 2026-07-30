@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'services/profile_service.dart';
 import 'state/dev_bypass.dart';
 import 'state/selected_profile.dart';
+import 'state/session_role.dart';
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
 import 'pages/profile_picker_page.dart';
@@ -34,7 +35,7 @@ final router = GoRouter(
   // that resolves and finds an existing profile, skip the onboarding
   // flow (/language, /patient) straight to /home instead of making a
   // returning caregiver click through it again every launch.
-  refreshListenable: Listenable.merge([SelectedProfile.instance, DevBypass.instance]),
+  refreshListenable: Listenable.merge([SelectedProfile.instance, DevBypass.instance, SessionRole.instance]),
   redirect: (context, state) {
     // A real (non-anonymous) account is required to use the app —
     // AuthPage's dev-only "Skip (dev)" button is the only way past this
@@ -52,10 +53,20 @@ final router = GoRouter(
     if (!hasRealAccount && !DevBypass.instance.skipped && !onEntryFunnel) return '/';
 
     final profile = SelectedProfile.instance;
+    // Family surface never touches SelectedProfile — WelcomePage's resume
+    // logic (async FamilyViewerService resolution, can't run in a sync
+    // redirect) routes a restored family session to its viewer.
+    if (SessionRole.instance.isFamily) return null;
     if (!profile.hasProfile) return null;
 
+    // A caregiver with a restored profile shouldn't click through
+    // onboarding again, and a signed-in one shouldn't sit on the entry
+    // funnel after an app restart (session persistence) — both go home.
     final onboarding = loc == '/language' || loc == '/patient';
-    return onboarding ? '/home' : null;
+    if (onboarding) return '/home';
+    final onWelcomeOrAuth = loc == '/' || loc == '/role' || loc == '/auth';
+    if (hasRealAccount && onWelcomeOrAuth) return '/home';
+    return null;
   },
   routes: [
     GoRoute(path: '/',          builder: (c, s) => const WelcomePage()),
