@@ -1,9 +1,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const request = require('supertest');
 
 const firebase = require('../../src/firebase');
 const app = require('../../src/app');
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(code.trim().toUpperCase()).digest('hex');
+}
 
 function mockAuthedUser(t, uid) {
   t.mock.method(firebase.auth, 'verifyIdToken', async () => ({ uid }));
@@ -45,18 +50,7 @@ test('POST invitations rejects a bad intendedRole', async (t) => {
   const res = await request(app)
     .post('/households/h1/invitations')
     .set('Authorization', 'Bearer token')
-    .send({ intendedRole: 'doctor', invitedEmail: 'a@b.com' });
-
-  assert.equal(res.status, 400);
-});
-
-test('POST invitations rejects a missing invitedEmail', async (t) => {
-  mockAuthedUser(t, 'user-1');
-
-  const res = await request(app)
-    .post('/households/h1/invitations')
-    .set('Authorization', 'Bearer token')
-    .send({ intendedRole: 'family' });
+    .send({ intendedRole: 'doctor' });
 
   assert.equal(res.status, 400);
 });
@@ -68,16 +62,30 @@ test('POST invitations rejects a non-member', async (t) => {
   const res = await request(app)
     .post('/households/h1/invitations')
     .set('Authorization', 'Bearer token')
-    .send({ intendedRole: 'family', invitedEmail: 'a@b.com' });
+    .send({ intendedRole: 'family' });
 
   assert.equal(res.status, 403);
 });
 
-test('POST invitations creates an invitation and a token lookup, returns the raw token', async (t) => {
+test('POST invitations rejects a member whose role cannot invite (e.g. family)', async (t) => {
+  mockAuthedUser(t, 'family-uid');
+  t.mock.method(firebase.db, 'doc', () => ({
+    get: async () => ({ exists: true, data: () => ({ status: 'active', role: 'family' }) }),
+  }));
+
+  const res = await request(app)
+    .post('/households/h1/invitations')
+    .set('Authorization', 'Bearer token')
+    .send({ intendedRole: 'caregiver' });
+
+  assert.equal(res.status, 403);
+});
+
+test('POST invitations creates an invitation and a hashed-code lookup, returns a short code', async (t) => {
   mockAuthedUser(t, 'user-1');
   t.mock.method(firebase.db, 'doc', (path) => ({
     path,
-    get: async () => ({ exists: true, data: () => ({ status: 'active' }) }),
+    get: async () => ({ exists: true, data: () => ({ status: 'active', role: 'caregiver' }) }),
   }));
   t.mock.method(firebase.db, 'collection', (path) => fakeCollectionRef(path));
 
@@ -87,30 +95,33 @@ test('POST invitations creates an invitation and a token lookup, returns the raw
   const res = await request(app)
     .post('/households/h1/invitations')
     .set('Authorization', 'Bearer token')
-    .send({ intendedRole: 'family', invitedEmail: 'Family@Example.com', careRecipientId: 'rec-1' });
+    .send({ intendedRole: 'family', careRecipientId: 'rec-1' });
 
   assert.equal(res.status, 200);
-  assert.ok(res.body.token);
-  assert.equal(res.body.token.length, 48); // 24 random bytes, hex-encoded
+  assert.ok(res.body.code);
+  assert.equal(res.body.code.length, 8);
+  assert.match(res.body.code, /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/); // no 0/O/1/I/L
 
   const invitationSet = sets.find((s) => s.path.includes('/invitations/'));
   assert.equal(invitationSet.data.intendedRole, 'family');
-  assert.equal(invitationSet.data.invitedEmailNormalized, 'family@example.com');
+  assert.equal(invitationSet.data.invitedEmailNormalized, null);
   assert.equal(invitationSet.data.status, 'pending');
-  assert.notEqual(invitationSet.data.tokenHash, res.body.token); // hash, not raw token
+  assert.notEqual(invitationSet.data.tokenHash, res.body.code); // hash, not raw code
 
-  const lookupSet = sets.find((s) => s.path.startsWith(`inviteTokens/${res.body.token}`));
+  // Lookup doc is keyed by the code's hash, never the raw code.
+  const lookupSet = sets.find((s) => s.path.startsWith('inviteTokens/'));
+  assert.equal(lookupSet.path, `inviteTokens/${hashCode(res.body.code)}`);
   assert.equal(lookupSet.data.householdId, 'h1');
 });
 
-test('GET /invites/:token 404s for an unknown token', async (t) => {
+test('GET /invites/:code 404s for an unknown code', async (t) => {
   t.mock.method(firebase.db, 'doc', () => ({ get: async () => ({ exists: false }) }));
 
-  const res = await request(app).get('/invites/nope');
+  const res = await request(app).get('/invites/NOPECODE');
   assert.equal(res.status, 404);
 });
 
-test('GET /invites/:token 404s for an expired invite', async (t) => {
+test('GET /invites/:code 404s for an expired invite', async (t) => {
   let call = 0;
   t.mock.method(firebase.db, 'doc', () => {
     call += 1;
@@ -120,16 +131,16 @@ test('GET /invites/:token 404s for an expired invite', async (t) => {
     return {
       get: async () => ({
         exists: true,
-        data: () => ({ status: 'pending', expiresAt: pastDate(), invitedEmailNormalized: 'a@b.com' }),
+        data: () => ({ status: 'pending', expiresAt: pastDate(), intendedRole: 'family' }),
       }),
     };
   });
 
-  const res = await request(app).get('/invites/some-token');
+  const res = await request(app).get('/invites/SOMECODE');
   assert.equal(res.status, 404);
 });
 
-test('GET /invites/:token returns inviter and patient info for a valid pending invite', async (t) => {
+test('GET /invites/:code returns inviter and patient info for a valid pending invite', async (t) => {
   let call = 0;
   t.mock.method(firebase.db, 'doc', () => {
     call += 1;
@@ -143,7 +154,7 @@ test('GET /invites/:token returns inviter and patient info for a valid pending i
           data: () => ({
             status: 'pending',
             expiresAt: futureDate(),
-            invitedEmailNormalized: 'family@example.com',
+            intendedRole: 'family',
             createdBy: 'caregiver-uid',
             careRecipientId: 'rec-1',
           }),
@@ -154,32 +165,32 @@ test('GET /invites/:token returns inviter and patient info for a valid pending i
   });
   t.mock.method(firebase.auth, 'getUser', async () => ({ displayName: 'Siti' }));
 
-  const res = await request(app).get('/invites/some-token');
+  const res = await request(app).get('/invites/SOMECODE');
 
   assert.equal(res.status, 200);
+  assert.equal(res.body.intendedRole, 'family');
   assert.equal(res.body.inviterName, 'Siti');
   assert.equal(res.body.patientId, 'rec-1');
   assert.equal(res.body.patientName, 'Lola Rosa');
-  assert.equal(res.body.email, 'family@example.com');
 });
 
-test('POST /invites/:token/accept rejects requests with no auth token', async () => {
-  const res = await request(app).post('/invites/some-token/accept').send({});
+test('POST /invites/:code/accept rejects requests with no auth token', async () => {
+  const res = await request(app).post('/invites/SOMECODE/accept').send({});
   assert.equal(res.status, 401);
 });
 
-test('POST /invites/:token/accept 404s on an invalid invite', async (t) => {
+test('POST /invites/:code/accept 404s on an invalid code', async (t) => {
   mockAuthedUser(t, 'family-uid');
   t.mock.method(firebase.db, 'doc', () => ({ get: async () => ({ exists: false }) }));
 
   const res = await request(app)
-    .post('/invites/bad-token/accept')
+    .post('/invites/BADCODE1/accept')
     .set('Authorization', 'Bearer token');
 
   assert.equal(res.status, 404);
 });
 
-test('POST /invites/:token/accept adds a family member without creating an assignment', async (t) => {
+test('POST /invites/:code/accept adds a family member without creating an assignment', async (t) => {
   mockAuthedUser(t, 'family-uid');
   t.mock.method(firebase.db, 'doc', (path) => {
     if (path.startsWith('inviteTokens/')) {
@@ -211,7 +222,7 @@ test('POST /invites/:token/accept adds a family member without creating an assig
   t.mock.method(firebase.db, 'batch', () => fakeBatch(sets));
 
   const res = await request(app)
-    .post('/invites/some-token/accept')
+    .post('/invites/SOMECODE/accept')
     .set('Authorization', 'Bearer token');
 
   assert.equal(res.status, 200);
@@ -224,7 +235,7 @@ test('POST /invites/:token/accept adds a family member without creating an assig
   assert.equal(assignmentSet, undefined); // family role never gets a caregiver assignment
 });
 
-test('POST /invites/:token/accept adds a caregiver assignment when intendedRole is caregiver', async (t) => {
+test('POST /invites/:code/accept adds a caregiver assignment when intendedRole is caregiver', async (t) => {
   mockAuthedUser(t, 'caregiver-2-uid');
   t.mock.method(firebase.db, 'doc', (path) => {
     if (path.startsWith('inviteTokens/')) {
@@ -255,7 +266,7 @@ test('POST /invites/:token/accept adds a caregiver assignment when intendedRole 
   t.mock.method(firebase.db, 'batch', () => fakeBatch(sets));
 
   const res = await request(app)
-    .post('/invites/some-token/accept')
+    .post('/invites/SOMECODE/accept')
     .set('Authorization', 'Bearer token');
 
   assert.equal(res.status, 200);
@@ -263,4 +274,42 @@ test('POST /invites/:token/accept adds a caregiver assignment when intendedRole 
   const assignmentSet = sets.find((s) => s.path === 'households/h1/careRecipients/rec-1/assignments/caregiver-2-uid');
   assert.equal(assignmentSet.data.status, 'active');
   assert.equal(assignmentSet.data.caregiverUid, 'caregiver-2-uid');
+});
+
+test('POST /invites/:code/accept works regardless of which uid is accepting (join code, no email tie-in)', async (t) => {
+  mockAuthedUser(t, 'anybody-uid');
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.startsWith('inviteTokens/')) {
+      return { path, get: async () => ({ exists: true, data: () => ({ householdId: 'h1', invitationId: 'inv-1' }) }) };
+    }
+    if (path.includes('/invitations/')) {
+      return {
+        path,
+        get: async () => ({
+          exists: true,
+          data: () => ({
+            status: 'pending',
+            expiresAt: futureDate(),
+            intendedRole: 'family',
+            careRecipientId: null,
+            createdBy: 'caregiver-uid',
+          }),
+        }),
+      };
+    }
+    if (path.startsWith('householdMemberships/')) {
+      return { path, get: async () => ({ exists: false }), set: async () => {} };
+    }
+    return { path, get: async () => ({ exists: false }) };
+  });
+
+  const sets = [];
+  t.mock.method(firebase.db, 'batch', () => fakeBatch(sets));
+
+  const res = await request(app)
+    .post('/invites/SOMECODE/accept')
+    .set('Authorization', 'Bearer token');
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.householdId, 'h1');
 });

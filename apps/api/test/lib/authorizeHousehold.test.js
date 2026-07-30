@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { db } = require('../../src/firebase');
-const { isHouseholdMember } = require('../../src/lib/authorizeHousehold');
+const { isHouseholdMember, canCreateInvites } = require('../../src/lib/authorizeHousehold');
 
 function mockDoc(t, data) {
   t.mock.method(db, 'doc', (path) => ({
@@ -36,4 +36,24 @@ test('isHouseholdMember queries the right document path', async (t) => {
   await isHouseholdMember({ householdId: 'h1', uid: 'u1' });
 
   assert.equal(queriedPath, 'households/h1/members/u1');
+});
+
+test('canCreateInvites returns false when no membership doc exists', async (t) => {
+  mockDoc(t, null);
+  assert.equal(await canCreateInvites({ householdId: 'h1', uid: 'u1' }), false);
+});
+
+test('canCreateInvites returns false for a family-role member', async (t) => {
+  mockDoc(t, { status: 'active', role: 'family' });
+  assert.equal(await canCreateInvites({ householdId: 'h1', uid: 'u1' }), false);
+});
+
+test('canCreateInvites returns true for a caregiver-role member', async (t) => {
+  mockDoc(t, { status: 'active', role: 'caregiver' });
+  assert.equal(await canCreateInvites({ householdId: 'h1', uid: 'u1' }), true);
+});
+
+test('canCreateInvites returns true for a householdAdmin-role member', async (t) => {
+  mockDoc(t, { status: 'active', role: 'householdAdmin' });
+  assert.equal(await canCreateInvites({ householdId: 'h1', uid: 'u1' }), true);
 });

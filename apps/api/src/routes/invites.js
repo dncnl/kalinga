@@ -4,34 +4,59 @@ const { FieldValue } = require('firebase-admin/firestore');
 
 const firebase = require('../firebase');
 const { requireAuth } = require('../middleware/auth');
-const { isHouseholdMember } = require('../lib/authorizeHousehold');
+const { canCreateInvites } = require('../lib/authorizeHousehold');
 
 const router = Router();
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// Caregiver creates an invite. Doesn't send an email — no email
-// infrastructure exists — just returns the token; the caller builds the
-// shareable link (kalinga://invite/{token} or similar) and shares it
-// manually. See mobile "invite family/caregiver" UI.
+// Excludes 0/O and 1/I/L — meant to be read off a screen and typed by hand
+// during onboarding, not copy-pasted from a link.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 8;
+
+function generateInviteCode() {
+  let code = '';
+  for (let i = 0; i < CODE_LENGTH; i += 1) {
+    code += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+// Case/whitespace-forgiving — someone typing this off a screen shouldn't
+// get rejected over Shift state.
+function normalizeCode(raw) {
+  return String(raw || '').trim().toUpperCase();
+}
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(normalizeCode(code)).digest('hex');
+}
+
+// Caregiver generates a join code. Only householdAdmin/caregiver roles may
+// mint one — a 'family' member (itself invited) minting a 'caregiver' code
+// with a care-recipient assignment would be a privilege escalation.
+//
+// This is a pure shared-secret join code, not tied to any particular
+// invitee identity (email/phone) — whoever the caregiver shares it with
+// (verbally, text, any channel) and types it in claims the role. Security
+// rests on the code being random, single-use (status flips to 'accepted'),
+// and short-lived (7 days), not on verifying who's entering it.
 router.post('/households/:householdId/invitations', requireAuth, async (req, res) => {
   const { householdId } = req.params;
-  const { intendedRole, invitedEmail, careRecipientId } = req.body || {};
+  const { intendedRole, careRecipientId } = req.body || {};
 
   if (!['family', 'caregiver'].includes(intendedRole)) {
     return res.status(400).json({ error: "intendedRole must be 'family' or 'caregiver'" });
   }
-  if (!invitedEmail || typeof invitedEmail !== 'string') {
-    return res.status(400).json({ error: 'invitedEmail is required' });
+
+  const canInvite = await canCreateInvites({ householdId, uid: req.uid });
+  if (!canInvite) {
+    return res.status(403).json({ error: 'Not authorized to invite members to this household' });
   }
 
-  const isMember = await isHouseholdMember({ householdId, uid: req.uid });
-  if (!isMember) {
-    return res.status(403).json({ error: 'Not a member of this household' });
-  }
-
-  const token = crypto.randomBytes(24).toString('hex');
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const code = generateInviteCode();
+  const tokenHash = hashCode(code);
   const now = new Date();
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
 
@@ -40,7 +65,7 @@ router.post('/households/:householdId/invitations', requireAuth, async (req, res
   const batch = firebase.db.batch();
   batch.set(invitationRef, {
     intendedRole,
-    invitedEmailNormalized: invitedEmail.trim().toLowerCase(),
+    invitedEmailNormalized: null,
     invitedPhoneE164: null,
     tokenHash,
     expiresAt,
@@ -54,19 +79,19 @@ router.post('/households/:householdId/invitations', requireAuth, async (req, res
     updatedAt: now,
     updatedBy: req.uid,
   });
-  // Lookup by raw token — the invitation doc itself only stores a hash
-  // (per schema), so this is what GET/accept below actually query.
-  batch.set(firebase.db.doc(`inviteTokens/${token}`), {
+  // Lookup keyed by the code's hash, never the raw code — the raw code only
+  // ever exists in memory here and wherever the caregiver shares it.
+  batch.set(firebase.db.doc(`inviteTokens/${tokenHash}`), {
     householdId,
     invitationId: invitationRef.id,
   });
   await batch.commit();
 
-  res.json({ token });
+  res.json({ code });
 });
 
-async function resolveInvitation(token) {
-  const lookupSnap = await firebase.db.doc(`inviteTokens/${token}`).get();
+async function resolveInvitation(rawCode) {
+  const lookupSnap = await firebase.db.doc(`inviteTokens/${hashCode(rawCode)}`).get();
   if (!lookupSnap.exists) return null;
 
   const { householdId, invitationId } = lookupSnap.data();
@@ -77,12 +102,12 @@ async function resolveInvitation(token) {
   return { householdId, invitationId, invitationRef, invitation: invitationSnap.data() };
 }
 
-// Public — the invitee has no Firebase account yet at this point, so this
-// cannot require auth. Deliberately returns the same 404 shape for
-// "doesn't exist," "expired," and "already used" — no reason to help an
-// attacker distinguish those.
-router.get('/invites/:token', async (req, res) => {
-  const resolved = await resolveInvitation(req.params.token);
+// Public — used to preview a code (who invited you, for whom) before/while
+// entering it, so it deliberately doesn't require auth. Returns the same
+// 404 shape for "doesn't exist," "expired," and "already used" — no reason
+// to help someone guessing codes distinguish those.
+router.get('/invites/:code', async (req, res) => {
+  const resolved = await resolveInvitation(req.params.code);
   if (!resolved) {
     return res.status(404).json({ error: 'Invite not found' });
   }
@@ -107,16 +132,20 @@ router.get('/invites/:token', async (req, res) => {
   }
 
   res.json({
-    token: req.params.token,
+    intendedRole: invitation.intendedRole,
     inviterName: inviter?.displayName || 'A caregiver',
     patientId,
     patientName,
-    email: invitation.invitedEmailNormalized,
   });
 });
 
-router.post('/invites/:token/accept', requireAuth, async (req, res) => {
-  const resolved = await resolveInvitation(req.params.token);
+// Called after the invitee has already registered/signed in — this is the
+// "are you a family member? enter your code" step in onboarding, not a
+// pre-registration link click. requireAuth identifies who's claiming the
+// code; nothing here checks *who* that is against the invitation, by design
+// (see the join-code note above).
+router.post('/invites/:code/accept', requireAuth, async (req, res) => {
+  const resolved = await resolveInvitation(req.params.code);
   if (!resolved) {
     return res.status(404).json({ error: 'Invite not found' });
   }
