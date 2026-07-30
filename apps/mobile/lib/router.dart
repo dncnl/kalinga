@@ -17,7 +17,11 @@ import 'pages/activity_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/family_register_page.dart';
+import 'pages/family_code_page.dart';
+import 'pages/family_recipients_page.dart';
+import 'pages/role_select_page.dart';
 import 'pages/welcome_page.dart';
+import 'services/family_viewer_service.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -44,7 +48,15 @@ final router = GoRouter(
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
     GoRoute(path: '/auth',
-        builder: (c, s) => AuthPage(startInLoginMode: s.uri.queryParameters['mode'] == 'login')),
+        builder: (c, s) => AuthPage(
+              startInLoginMode: s.uri.queryParameters['mode'] == 'login',
+              asFamilyMember: s.uri.queryParameters['role'] == 'family',
+            )),
+    GoRoute(path: '/role',
+        builder: (c, s) => RoleSelectPage(isLogin: s.uri.queryParameters['mode'] == 'login')),
+    GoRoute(path: '/family-code',  builder: (c, s) => const FamilyCodePage()),
+    GoRoute(path: '/family-recipients',
+        builder: (c, s) => FamilyRecipientsPage(recipients: s.extra as List<ViewableCareRecipient>)),
     GoRoute(path: '/invite/:token',
         builder: (c, s) => FamilyRegisterPage(token: s.pathParameters['token']!)),
   ],

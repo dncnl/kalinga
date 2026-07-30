@@ -7,10 +7,12 @@ import '../state/selected_profile.dart';
 import '../theme.dart';
 
 /// No email-sending infrastructure exists (see PLAN.md) — this generates a
-/// token via apps/api and shows it as a copyable link for the caregiver to
-/// share manually (message, etc). "kalinga://invite/{token}" is a
-/// placeholder scheme, not a registered/working deep link yet — clicking it
-/// outside the app won't do anything until real link infrastructure exists.
+/// token via apps/api and shows it as a copyable code for the caregiver to
+/// share manually (message, etc). The family member types this code into
+/// the app themselves under "I'm a family member" (`FamilyCodePage`,
+/// `/family-code`) rather than following a deep link — a working
+/// `kalinga://` URL scheme was never registered, so the link-based flow
+/// this screen used to describe didn't actually work outside the app.
 Future<void> showInviteSheet(BuildContext context, {required CareRecipient recipient}) {
   return showModalBottomSheet(
     context: context,
@@ -40,7 +42,7 @@ class _InviteSheetState extends State<_InviteSheet> {
   String _role = 'family';
   bool _creating = false;
   String? _error;
-  String? _link;
+  String? _code;
 
   @override
   void dispose() {
@@ -73,7 +75,7 @@ class _InviteSheetState extends State<_InviteSheet> {
         invitedEmail: email,
         careRecipientId: widget.recipient.id,
       );
-      setState(() => _link = 'kalinga://invite/$token');
+      setState(() => _code = token);
     } catch (e) {
       setState(() => _error = 'Could not create invite: $e');
     } finally {
@@ -98,7 +100,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
           const SizedBox(height: 20),
 
-          if (_link == null) ...[
+          if (_code == null) ...[
             Row(children: [
               Expanded(
                 child: _RolePill(
@@ -149,24 +151,29 @@ class _InviteSheetState extends State<_InviteSheet> {
               ),
             ),
           ] else ...[
-            Text('Share this link:', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            Text('Share this code:', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Text(_link!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
+              child: Text(_code!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Give this code to the family member — they\'ll enter it in the app under "I\'m a family member."',
+              style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600, height: 1.4),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _link!));
+                  Clipboard.setData(ClipboardData(text: _code!));
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
                 },
                 icon: const Icon(Icons.copy_rounded, size: 18),
-                label: Text('Copy link', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+                label: Text('Copy code', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.black87,
                   padding: const EdgeInsets.symmetric(vertical: 14),

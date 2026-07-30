@@ -2,18 +2,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/family_viewer_service.dart';
 import '../theme.dart';
 import '../widgets/back_button.dart';
 
 enum _AuthMode { register, login }
 
 /// Screen 03 · Sign in / register (`/auth`).
-/// Optional — reachable from Settings. Uses Firebase Auth email+password
-/// directly from the client; the app runs unauthenticated until then.
+/// Optional — reachable from Settings, or from RoleSelectPage's login fork.
+/// Uses Firebase Auth email+password directly from the client; the app runs
+/// unauthenticated until then. [asFamilyMember] only affects the login
+/// branch's post-success routing — register still only happens via
+/// FamilyCodePage/FamilyRegisterPage for a fresh family sign-up.
 class AuthPage extends StatefulWidget {
   final bool startInLoginMode;
+  final bool asFamilyMember;
 
-  const AuthPage({super.key, this.startInLoginMode = false});
+  const AuthPage({super.key, this.startInLoginMode = false, this.asFamilyMember = false});
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -22,6 +27,8 @@ class AuthPage extends StatefulWidget {
 class _AuthPageState extends State<AuthPage> {
   static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
+
+  final _familyViewerService = const FamilyViewerService();
 
   late _AuthMode _mode;
   final _nameController = TextEditingController();
@@ -72,6 +79,11 @@ class _AuthPageState extends State<AuthPage> {
         await auth.signInWithEmailAndPassword(email: email, password: password);
       }
       if (!mounted) return;
+
+      if (!isRegister && widget.asFamilyMember) {
+        await _routeFamilyMemberAfterLogin();
+        return;
+      }
       context.go('/home');
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message ?? 'Something went wrong. Try again.');
@@ -79,6 +91,32 @@ class _AuthPageState extends State<AuthPage> {
       setState(() => _error = 'Could not reach the server. Check your connection.');
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _routeFamilyMemberAfterLogin() async {
+    try {
+      final recipients = await _familyViewerService.resolveViewableRecipients();
+      if (!mounted) return;
+
+      if (recipients.isEmpty) {
+        setState(() {
+          _error = 'We couldn\'t find any records linked to this account yet. '
+              'If a caregiver shared a code with you, use that instead.';
+        });
+        return;
+      }
+      if (recipients.length == 1) {
+        context.go('/viewer/${recipients.first.careRecipient.id}');
+        return;
+      }
+      context.go('/family-recipients', extra: recipients);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Signed in, but couldn\'t load your family records. Check your connection and try again, '
+            'or use a code from the caregiver instead.';
+      });
     }
   }
 
@@ -116,7 +154,7 @@ class _AuthPageState extends State<AuthPage> {
               const SizedBox(height: 8),
               Text(
                 isRegister
-                    ? 'Only needed to link the family. Two fields\nand a password.'
+                    ? 'So the family you care for can see your reports. Takes less than a minute.'
                     : 'Sign in to keep sending your logs to the\nfamily you already invited.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600, height: 1.5),
@@ -168,7 +206,7 @@ class _AuthPageState extends State<AuthPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  isRegister ? 'Write it somewhere safe. We cannot see it.' : 'At least 6 characters.',
+                  isRegister ? 'Save this somewhere safe — we can\'t reset it for you.' : 'At least 6 characters.',
                   style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500),
                 ),
               ),
@@ -179,6 +217,19 @@ class _AuthPageState extends State<AuthPage> {
                   _error!,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.body(fontSize: 13).copyWith(color: _red),
+                ),
+              ],
+              if (_error != null && widget.asFamilyMember) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => context.push('/family-code'),
+                  child: Text(
+                    'Use a code instead',
+                    style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(
+                      color: Colors.black87,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ],
 
@@ -222,7 +273,7 @@ class _AuthPageState extends State<AuthPage> {
               const SizedBox(height: 16),
 
               Text(
-                'You can use Kalinga without an account. Sign in only\nwhen you want the family to read your logs.',
+                'No account needed to start. Add one later when you\'re\nready for their family to see your logs.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500, height: 1.5),
               ),

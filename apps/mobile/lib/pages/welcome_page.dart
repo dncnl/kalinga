@@ -6,9 +6,12 @@ import '../theme.dart';
 /// App entry point (`/`). Highlights Sign Up / Log In, with a
 /// "continue without an account" path into the existing
 /// language → patient-setup flow — same optional-auth philosophy as
-/// `AuthPage`. UI/navigation only: both auth buttons reuse the real
-/// Firebase Auth logic already in `AuthPage`, nothing here talks to the
-/// backend or database directly.
+/// `AuthPage`. UI/navigation only, nothing here talks to the backend or
+/// database directly. Both Sign Up and Log In now detour through the role
+/// picker (`/role`) — for Log In this determines where `AuthPage` routes to
+/// after a successful sign-in (caregiver home vs. the signed-in family
+/// member's own viewer page), not which form is shown (email+password is
+/// the same either way).
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
@@ -60,7 +63,7 @@ class WelcomePage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.push('/auth'),
+                  onPressed: () => context.push('/role'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -85,7 +88,7 @@ class WelcomePage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => context.push('/auth?mode=login'),
+                  onPressed: () => context.push('/role?mode=login'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.black87,
                     padding: const EdgeInsets.symmetric(vertical: 18),
