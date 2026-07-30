@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "rag:upload": "node src/rag/uploadNewSources.js",
+    "rag:ingest": "node src/rag/ingest.js"
   },
   "keywords": [],
   "author": "",
