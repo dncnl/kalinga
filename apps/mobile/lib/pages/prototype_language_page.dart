@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/locale_state.dart';
 import '../theme.dart';
 
 class _Language {
   final String name;
   final String native;
+  final String localeCode;
 
-  const _Language({required this.name, required this.native});
+  const _Language({required this.name, required this.native, required this.localeCode});
 }
 
 const _languages = [
-  _Language(name: 'Tagalog', native: 'Filipino'),
-  _Language(name: 'Bisaya', native: 'Cebuano'),
-  _Language(name: 'Bahasa Indonesia', native: 'Indonesian'),
-  _Language(name: 'Vietnamese', native: 'Tiếng Việt'),
+  _Language(name: 'Tagalog', native: 'Filipino', localeCode: 'fil'),
+  _Language(name: 'Bisaya', native: 'Cebuano', localeCode: 'ceb'),
+  _Language(name: 'Bahasa Indonesia', native: 'Indonesian', localeCode: 'id'),
+  _Language(name: 'Vietnamese', native: 'Tiếng Việt', localeCode: 'vi'),
 ];
 
 class PrototypeLanguagePage extends StatefulWidget {
@@ -103,7 +105,10 @@ class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/patient'),
+                  onPressed: () {
+                    LocaleState.instance.select(_languages[_selected].localeCode);
+                    context.go('/patient');
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _red,
                     foregroundColor: Colors.white,

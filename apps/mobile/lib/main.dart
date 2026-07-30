@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'router.dart';
+import 'state/locale_state.dart';
 import 'state/selected_profile.dart';
 import 'theme.dart';
 
@@ -17,6 +18,7 @@ Future<void> main() async {
   // selected profile listen to SelectedProfile.instance and react once
   // this resolves rather than blocking startup on a network round trip.
   unawaited(SelectedProfile.instance.initialize());
+  unawaited(LocaleState.instance.initialize());
 
   runApp(const MyApp());
 }

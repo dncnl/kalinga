@@ -36,6 +36,26 @@ class RagAnswer {
   RagAnswer({required this.answer, required this.sources});
 }
 
+/// Result of a household/care-recipient-scoped symptom check — unlike the
+/// bare [RagAnswer], this always knows whether family/doctor were flagged.
+class SymptomCheckResult {
+  final String symptomCheckId;
+  final String answer;
+  final List<RagSource> sources;
+  final String urgency; // none|information|attention|urgent|emergency
+  final String familySummaryZh;
+  final bool flaggedToFamily;
+
+  SymptomCheckResult({
+    required this.symptomCheckId,
+    required this.answer,
+    required this.sources,
+    required this.urgency,
+    required this.familySummaryZh,
+    required this.flaggedToFamily,
+  });
+}
+
 class RagService {
   const RagService();
 
@@ -65,5 +85,45 @@ class RagService {
         .toList();
 
     return RagAnswer(answer: body['answer'] as String, sources: sources);
+  }
+
+  /// Symptom-checker: RAG-grounded, answered directly in [locale], and
+  /// urgency-classified — flags family/doctor with a Mandarin summary when
+  /// urgency comes back urgent/emergency. Unlike [ask], this is scoped to
+  /// a specific care recipient since the flag has to reach the right family.
+  Future<SymptomCheckResult> checkSymptom(
+    String message, {
+    required String householdId,
+    required String careRecipientId,
+    required String locale,
+  }) async {
+    final token = await getIdToken();
+
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/symptom-check'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'message': message, 'locale': locale}),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to check symptom: ${res.body}');
+    }
+
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final sources = (body['sources'] as List)
+        .map((s) => RagSource.fromJson(s as Map<String, dynamic>))
+        .toList();
+
+    return SymptomCheckResult(
+      symptomCheckId: body['symptomCheckId'] as String,
+      answer: body['answer'] as String,
+      sources: sources,
+      urgency: body['urgency'] as String,
+      familySummaryZh: body['familySummaryZh'] as String,
+      flaggedToFamily: body['flaggedToFamily'] as bool,
+    );
   }
 }

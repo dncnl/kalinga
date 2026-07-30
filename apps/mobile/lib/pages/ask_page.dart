@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/rag_service.dart';
+import '../state/locale_state.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 
@@ -24,26 +25,39 @@ class _AskPageState extends State<AskPage> {
   ];
 
   bool _asking = false;
-  RagAnswer? _answer;
+  SymptomCheckResult? _result;
   String? _error;
 
   @override
   void dispose() { _controller.dispose(); super.dispose(); }
 
   Future<void> _submit() async {
-    final question = _controller.text.trim();
-    if (question.isEmpty || _asking) return;
+    final message = _controller.text.trim();
+    if (message.isEmpty || _asking) return;
+
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) {
+      setState(() => _error = 'Add a profile before asking about a symptom.');
+      return;
+    }
 
     setState(() {
       _asking = true;
-      _answer = null;
+      _result = null;
       _error = null;
     });
 
     try {
-      final result = await _ragService.ask(question);
+      final result = await _ragService.checkSymptom(
+        message,
+        householdId: householdId,
+        careRecipientId: careRecipientId,
+        locale: LocaleState.instance.locale,
+      );
       if (!mounted) return;
-      setState(() => _answer = result);
+      setState(() => _result = result);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -125,8 +139,10 @@ class _AskPageState extends State<AskPage> {
                 child: Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),
               ),
             ],
-            if (_answer != null) ...[
+            if (_result != null) ...[
               const SizedBox(height: 20),
+              _UrgencyBanner(result: _result!),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -136,12 +152,12 @@ class _AskPageState extends State<AskPage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_answer!.answer, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
-                  if (_answer!.sources.isNotEmpty) ...[
+                  Text(_result!.answer, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
+                  if (_result!.sources.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text('SOURCES', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
                     const SizedBox(height: 8),
-                    ..._answer!.sources.map((s) => Padding(
+                    ..._result!.sources.map((s) => Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Text(
                         '[${s.n}] ${s.title} — ${s.publisher}',
@@ -226,6 +242,52 @@ class _AskPageState extends State<AskPage> {
         BottomNavigationBarItem(icon: Icon(Icons.medication_outlined), label: 'Meds'),
         BottomNavigationBarItem(icon: Icon(Icons.help_outline_rounded), label: 'Help'),
       ],
+    );
+  }
+}
+
+class _UrgencyBanner extends StatelessWidget {
+  final SymptomCheckResult result;
+  const _UrgencyBanner({required this.result});
+
+  ({Color bg, Color fg, IconData icon, String title}) get _style {
+    switch (result.urgency) {
+      case 'emergency':
+        return (bg: const Color(0xFFFFE9E5), fg: const Color(0xFFB3261E), icon: Icons.emergency_rounded, title: 'Possible emergency');
+      case 'urgent':
+        return (bg: const Color(0xFFFFF4E5), fg: const Color(0xFFB3691E), icon: Icons.priority_high_rounded, title: 'Needs a doctor soon');
+      case 'attention':
+        return (bg: const Color(0xFFFFFBEA), fg: const Color(0xFF8A6D00), icon: Icons.visibility_outlined, title: 'Worth watching');
+      default:
+        return (bg: const Color(0xFFE9F7F5), fg: const Color(0xFF1F7A6C), icon: Icons.check_circle_outline_rounded, title: 'Not urgent');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _style;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: s.bg, borderRadius: BorderRadius.circular(14)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(s.icon, color: s.fg, size: 20),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(s.title, style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: s.fg)),
+          const SizedBox(height: 4),
+          Text(
+            result.flaggedToFamily
+                ? 'Sent to family and doctor in Mandarin.'
+                : 'Not sent to family — not urgent enough to flag.',
+            style: AppTextStyles.body(fontSize: 12).copyWith(color: s.fg.withValues(alpha: 0.85)),
+          ),
+          if (result.flaggedToFamily) ...[
+            const SizedBox(height: 8),
+            Text(result.familySummaryZh, style: AppTextStyles.body(fontSize: 13).copyWith(color: s.fg, height: 1.4)),
+          ],
+        ])),
+      ]),
     );
   }
 }

@@ -116,6 +116,12 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
   separate feature-sized piece of work.
 - Push notifications (FCM) for the alert — `firebase_messaging` is already a
   mobile dependency but nothing subscribes/sends yet; out of scope here.
+- Voice-log's Speech-to-Text still doesn't support `ceb` (Bisaya) —
+  pre-existing gap in `transcribe.js`'s `STT_LANGUAGE_CODES`, now more
+  visible since language selection is real: a caregiver who picks Bisaya
+  will hit a 400 on `/log` (voice-log), even though `/ask` (symptom-check,
+  text-based) and translation work fine for `ceb`. Not fixed here — out of
+  scope for a text-based symptom checker.
 
 ## Progress
 
@@ -150,6 +156,15 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
       (7 tests, incl. non-urgent/no-alert vs. urgent/alert-created paths).
       Full suite: 119/122 pass; same 3 pre-existing OpenRouter rate-limit
       flakes as Feature 4, unrelated to this branch.
-- [ ] Mobile LocaleState (real language persistence)
-- [ ] Mobile ask_page.dart wired
+- [x] Mobile LocaleState — `apps/mobile/lib/state/locale_state.dart`, mirrors
+      `SelectedProfile`'s persisted-singleton pattern. `/language` page's
+      Continue button now saves a real `fil`/`ceb`/`id`/`vi` selection;
+      replaced the `demoLocale` placeholder everywhere it was used
+      (`api_config.dart`, `observation_service.dart` — voice-log locale is
+      now the caregiver's real choice too, not just symptom-check).
+- [x] Mobile ask_page.dart wired — `RagService.checkSymptom()` calls the
+      new household/care-recipient-scoped endpoint with the real locale;
+      added an urgency banner (color-coded none/attention/urgent/emergency)
+      that explicitly says whether family/doctor were flagged, and shows
+      the Mandarin summary when they were.
 - [ ] Live test

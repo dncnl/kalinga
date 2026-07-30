@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../api_config.dart';
+import '../state/locale_state.dart';
 import '../week_key.dart';
 import 'auth_token.dart';
 
@@ -59,7 +60,7 @@ class ObservationService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'storagePath': storagePath, 'locale': demoLocale}),
+      body: jsonEncode({'storagePath': storagePath, 'locale': LocaleState.instance.locale}),
     );
     if (processRes.statusCode != 200) {
       throw Exception('Failed to process observation: ${processRes.body}');
