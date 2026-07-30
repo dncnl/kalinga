@@ -181,6 +181,13 @@ router.post(
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}/label.${extension}`;
 
+    // Recorded so /process can rebuild storagePath itself instead of
+    // trusting whatever path the client sends it — otherwise a caller could
+    // point the label scan at an arbitrary object in the bucket.
+    await firebase.db
+      .doc(`households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}`)
+      .set({ status: 'pendingUpload', photoExtension: extension, createdAt: new Date() });
+
     const expiresAt = Date.now() + UPLOAD_URL_TTL_MS;
     const [uploadUrl] = await firebase
       .getBucket()
@@ -204,11 +211,19 @@ router.post(
   requireAssignment,
   async (req, res) => {
     const { householdId, careRecipientId, medicationId } = req.params;
-    const { storagePath } = req.body || {};
 
-    if (!storagePath) {
-      return res.status(400).json({ error: 'storagePath is required' });
+    // storagePath is rebuilt server-side from the extension recorded at
+    // upload-url time — never trust a client-supplied path, since that would
+    // let a caller point the label scan at an arbitrary object in the bucket.
+    const ref = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}`,
+    );
+    const medicationSnap = await ref.get();
+    if (!medicationSnap.exists || medicationSnap.data().status !== 'pendingUpload') {
+      return res.status(404).json({ error: 'No upload found for this medication' });
     }
+    const extension = medicationSnap.data().photoExtension;
+    const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}/label.${extension}`;
 
     try {
       const expiresAt = Date.now() + READ_URL_TTL_MS;
@@ -220,9 +235,6 @@ router.post(
       const draft = await extractMedicationLabel({ imageUrl });
 
       const now = new Date();
-      const ref = firebase.db.doc(
-        `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}`,
-      );
 
       await ref.set({
         name: draft.name || 'Unlabeled medication',

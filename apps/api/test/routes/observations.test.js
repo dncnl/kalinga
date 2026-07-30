@@ -14,6 +14,7 @@ function mockAuthedUser(t, uid) {
 function mockAssignment(t, data) {
   t.mock.method(firebase.db, 'doc', () => ({
     get: async () => ({ exists: data !== null, data: () => data }),
+    set: async () => {},
   }));
 }
 
