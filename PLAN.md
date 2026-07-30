@@ -1,109 +1,107 @@
-# Feature: Household join codes (family/caregiver) + invite-flow authz fixes
+# Feature: RAG — Firestore native vector search + document ingestion pipeline
 
-Replaces the email-based invite idea with a simpler join-code model: a
-caregiver generates a short code, shares it with a family member or another
-caregiver through whatever channel they want (text, verbally, WhatsApp —
-not built or sent by this app), and the recipient enters that code
-**after** registering, when the app asks "are you a family member or a
-caretaker?" No email infrastructure, no deep-link/universal-link problem to
-solve.
+Replaces the RAG pipeline's brute-force, in-memory cosine-similarity
+retrieval with Firestore's native vector search, and adds a real way to
+grow the knowledge base beyond the original 5 hand-authored sources:
+upload a document to a Cloud Storage bucket, run a Cloud Run Job against
+it, and it's chunked, embedded, and searchable via `/rag/ask`.
 
-## Why this replaced the email-invite direction
+## Why this replaced the brute-force retrieval
 
-An earlier pass on this branch built full email delivery (Nodemailer +
-SendGrid) for the pre-existing token-based invite flow. Before shipping
-that, a security review of the same invite flow surfaced three
-authorization gaps (below). Fixing those didn't require email at all, and
-once the accept step moved to "type a code in during onboarding" instead of
-"click a link from an email," the whole justification for email delivery,
-and for tying a code to one specific invitee email, went away. Decision:
-drop the email work entirely, keep the flow reachable only through the
-onboarding "family or caretaker?" screen. All Nodemailer/SendGrid/mailer.js
-code has been removed from this branch.
+`retrieve.js` used to load the *entire* `ragChunks` collection into memory
+on every query and rank chunks by cosine similarity computed in
+JavaScript — explicitly called out in the old code as a stopgap. That
+stopped being reasonable once real reference documents (14 clinical
+guidelines/research papers on dementia, medication safety, hypertension,
+CKD, pneumonia, multimorbidity, plus a 500KB Taiwan nursing-care policy
+document) were added to the corpus.
 
 ## Design decisions made this session
 
-1. **Join code is a pure shared secret — no email tie-in.** The caregiver
-   picks a role (`family`/`caregiver`) and gets a code back; nothing about
-   *who* the code is for is recorded or checked. Whoever registers and
-   types a valid, unexpired, not-yet-used code claims that role. This is
-   the same trust model as a classroom/workspace join code. Rejected
-   alternative: requiring the family member to register with a
-   caregiver-declared email and checking it at accept time — more secure
-   against a leaked code, but adds friction (the family member has to know
-   to use one specific email) that doesn't fit "ask after registration."
-2. **Short human-typeable code, not a long token.** Was a 48-char hex
-   string (fine when pasted from a link, painful typed from memory or off
-   a phone screen). Now an 8-character code from a 31-symbol alphabet
-   (`ABCDEFGHJKMNPQRSTUVWXYZ23456789` — excludes 0/O and 1/I/L to avoid
-   misreads), case-insensitive on entry. ~39.6 bits of entropy
-   (31^8 ≈ 852B combinations) — combined with single-use + 7-day expiry,
-   that's not brute-forceable at any practical request rate, so no
-   additional rate-limiting was added for this.
+1. **Firestore `findNearest`, not a dedicated vector DB.** Embeddings
+   (local, `Xenova/all-MiniLM-L6-v2`, 384-dim, no API key) are now stored
+   as native Firestore `VectorValue`s (`FieldValue.vector()`) instead of
+   plain arrays, queried via `collection.findNearest({ distanceMeasure:
+   'COSINE', ... })` against a vector index (added to
+   `packages/kalinga_firestore_package/firestore.indexes.json`). Rejected
+   Vertex AI Search / a dedicated vector DB as overkill for a corpus this
+   size and inconsistent with "keep everything in Firestore" — see the
+   conversation history for the full tradeoff discussion.
+2. **`BulkWriter`, not `batch()`, for chunk writes.** `batch()` hard-caps
+   at 500 writes; a single large source document can produce more than
+   500 chunks (the 500KB Taiwan nursing-care doc does). Both `ingest.js`
+   and the new `ingest-file.js` now use `db.bulkWriter()`.
+3. **New `ingest-file.js`, separate from `ingest.js`.** `ingest.js` stays
+   as the bulk "seed the 5 hand-authored sources" script. `ingest-file.js`
+   ingests one document at a time and has two modes: a local-file mode
+   (CLI args, for dev/testing with zero GCP calls) and a GCS mode (reads
+   `BUCKET_NAME`/`OBJECT_NAME` env vars, metadata from the object's custom
+   metadata) — the mode a deployed Cloud Run Job actually uses.
+4. **PDF/DOCX support**, via `pdf-parse` (pinned to the stable 1.x
+   function-based API — 2.x ships a very different class-based API) and
+   `mammoth`, dispatched by file extension in `extractText()`.
+5. **Cloud Run Job, not a Function**, for ingestion — Jobs fit
+   "run to completion, no HTTP request/response" far better, and give
+   headroom (1Gi memory, 30-minute task timeout) for loading the
+   embedding model and processing large documents.
+6. **Manual trigger for now (Stage 1); Storage-event auto-trigger is
+   Stage 2**, deliberately deferred to a separate branch so each new GCP
+   concept (Cloud Run Jobs/IAM first, eventing later) lands on its own.
 
-## Gaps found in the pre-existing invite flow and fixed
+## Bugs found and fixed this session (all pre-existing or newly introduced,
+now resolved)
 
-1. **No role check on invite creation** — any active household member
-   (including a `family`-role member who was themselves invited) could
-   mint a `caregiver` invite with a care-recipient assignment attached —
-   privilege escalation. Fixed: `authorizeHousehold.js` adds
-   `canCreateInvites`, gating creation to `householdAdmin`/`caregiver`
-   roles. (`isHouseholdMember` unchanged, still used by every other
-   household-scoped route.)
-2. **The token hash was decorative** — the invitation doc stored a
-   `tokenHash`, but the lookup doc (`inviteTokens/{token}`) used the *raw*
-   token as its own document ID right next to it, so the hash protected
-   nothing (a Firestore data leak would have handed over live, usable
-   tokens). Fixed: `inviteTokens` is now keyed by the code's hash; the raw
-   code is never persisted anywhere, only ever held in memory and wherever
-   the caregiver shares it.
-3. ~~Accept never checked who's accepting~~ — this was fixed earlier in
-   this session (checking the accepting user's email against the invite),
-   then **deliberately reverted** once the design moved to a pure join-code
-   model (decision #1 above) — there's no invitee email to check against
-   anymore, by design.
+1. **Dead dependency blocking fresh installs**: `package.json` declared
+   `@dataconnect/admin-generated` as a `file:` dependency pointing at a
+   directory that doesn't exist in this checkout, and nothing in
+   `apps/api/src` actually imports it. Any fresh `npm install` (Cloud
+   Build, CI, a new clone) would fail on it. Removed.
+2. **Missing `apps/api/.gcloudignore`**: `gcloud run jobs deploy --source`
+   had no ignore rules for that subdirectory (the root `.gitignore`'s
+   `node_modules/` rule doesn't apply to a `--source` deploy from a
+   subdirectory), so it tried to upload the entire local `node_modules` —
+   including a broken symlink from (1) — and crashed. Added.
+3. **`firebase-admin/storage`'s `getStorage()` silently sent
+   unauthenticated ("anonymous caller") requests** when downloading
+   objects from the new RAG bucket, even with valid credentials elsewhere
+   in the same process (Firestore calls worked fine). Switched
+   `ingest-file.js`'s GCS download to `@google-cloud/storage` directly
+   with `googleAuthOptions()` — the same pattern `firebase.js` already
+   uses for Speech/Translate.
+4. **Every single Cloud Run Job execution failed silently** (exit code 1,
+   zero captured stdout/stderr) until diagnosed via a local Docker
+   reproduction: `--command=node --args=...` bypasses the Buildpacks
+   image's launcher entirely, so `node` isn't on the container's static
+   PATH (`exec: "node": executable file not found in $PATH`). Fixed by
+   routing through `/cnb/lifecycle/launcher` instead:
+   `--command=/cnb/lifecycle/launcher --args=node,src/rag/ingest-file.js`.
 
-Not changed: `GET /invites/:code` is still unauthenticated by necessity (an
-onboarding screen may want to preview "who invited you, for whom" before
-the user commits to entering it as their final answer) and returns
-inviter/patient names to anyone holding a valid code. No email is returned
-now (there isn't one).
+## What's done vs. deferred to later branches
 
-## What's backend-only vs. still needed on mobile
+Done, this branch: Firestore vector search migration, `ingest-file.js`,
+the Cloud Run Job (`rag-ingest-job`, `us-central1`), a dedicated bucket
+(`kalinga-bc97f-rag-sources`) and service account
+(`rag-ingest-job@kalinga-bc97f.iam.gserviceaccount.com`), and all 14 new
+reference documents ingested and confirmed retrievable.
 
-Backend (this branch): `POST /households/:householdId/invitations` (now
-just `{ intendedRole, careRecipientId? }` → `{ code }`), `GET /invites/:code`
-(preview), `POST /invites/:code/accept` (claim, post-registration). All
-three already existed in some form; this branch changed their shape and
-closed the two authz gaps above.
-
-**Not built here, flagged for whoever picks up mobile next:**
-- The actual "are you a family member or a caretaker?" onboarding screen
-  and its branch into either `POST /households/bootstrap` (caretaker) or a
-  code-input field calling the two invite endpoints above (family member).
-- `apps/mobile/lib/services/invite_service.dart`, `invite_sheet.dart`, and
-  `family_register_page.dart` all still assume the **old** contract
-  (`invitedEmail` required at creation, `email` in the GET response,
-  email-locked registration form, `/invite/:token` deep-link route) and
-  will need to be reworked, not just re-pointed, to match this new
-  contract. They have not been touched in this branch.
+**Not built here, deliberately deferred:**
+- Stage 2: a Cloud Storage → Eventarc → Cloud Run Job trigger, so upload
+  alone (no manual `gcloud run jobs execute`) is enough.
+- Switching `llmClient.js`'s default provider from OpenRouter to Vertex
+  AI/Gemini (both for `/rag/ask` and `extractObservation.js`) — separate
+  branch, since it's an unrelated concern from retrieval/ingestion.
 
 ## Progress
 
-- [x] `authorizeHousehold.js`: `canCreateInvites` (householdAdmin/caregiver
-      only).
-- [x] `invites.js`: role-gated creation, short 8-char join code (no email),
-      hashed-code-keyed lookup doc, no identity check on accept (by
-      design).
-- [x] Tests: `invites.test.js` rewritten for the new contract (code format,
-      no invitedEmail, `/invites/:code` naming, an explicit test asserting
-      any authenticated uid can accept — documenting the join-code trust
-      model rather than accidentally regressing it later);
-      `authorizeHousehold.test.js` covers `canCreateInvites` for
-      no-membership/family/caregiver/householdAdmin. Full suite:
-      130/133 passing — the 3 failures are pre-existing OpenRouter
-      rate-limit flakes in `extractObservation`/`observations-process`
-      tests, unrelated to this branch.
-- [ ] Mobile onboarding screen + rewired `InviteService`/`invite_sheet.dart`/
-      `family_register_page.dart` — not started, see above.
-- [ ] Live test against real Firebase — not done in this environment.
+- [x] `retrieve.js` / `ingest.js`: Firestore `findNearest` + `BulkWriter`.
+- [x] `ingest-file.js`: local-file + GCS modes, PDF/DOCX/text extraction.
+- [x] Cloud Run Job deployed and working (bucket + IAM + launcher fix).
+- [x] 14 real reference documents ingested and spot-verified in Firestore
+      (correct metadata, real `VectorValue` embeddings).
+- [x] `retrieve.test.js` rewritten for `findNearest` mocks; full test
+      suite otherwise unaffected (130/133 passing — the 3 failures are
+      pre-existing OpenRouter rate-limit flakes in
+      `extractObservation`/`observations-process`, unrelated to this
+      branch).
+- [ ] Stage 2 (Eventarc auto-trigger) — separate branch.
+- [ ] Vertex AI/Gemini LLM provider switch — separate branch.
