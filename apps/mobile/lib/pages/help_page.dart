@@ -20,14 +20,63 @@ class _HelpPageState extends State<HelpPage> {
   static const _teal = Color(0xFF2BBFB3);
 
   static const _bundledNumbers = [
-    _Contact('119', 'Ambulance and fire', 'Ambulance and fire', _red, true, displayOrder: 2),
-    _Contact('1955', 'Labor helpline', 'Labor helpline', Colors.black, false, displayOrder: 4),
+    _Contact(
+      '119',
+      'Ambulance and fire',
+      'Ambulance and fire',
+      _red,
+      true,
+      displayOrder: 2,
+    ),
+    _Contact(
+      '1955',
+      'Labor helpline',
+      'Labor helpline',
+      Colors.black,
+      false,
+      displayOrder: 4,
+    ),
     _Contact('110', 'Police', 'Police', _red, true, displayOrder: 1),
-    _Contact('1990', 'Foreigner hotline', 'Foreigner helpline', Colors.black, false, displayOrder: 6),
-    _Contact('0800474580', 'National Dementia Care Hotline', 'Dementia support', Colors.black, false, displayOrder: 7),
-    _Contact('1966', 'Long-Term Care Service Hotline', 'Long-term care', Colors.black, false, displayOrder: 5),
-    _Contact('1995', 'Lifeline (caregiver support)', 'Caregiver support', Colors.black, false, displayOrder: 8),
-    _Contact('165', 'Anti-Fraud Hotline', 'Danger or protection', Colors.black, false, displayOrder: 9),
+    _Contact(
+      '1990',
+      'Foreigner hotline',
+      'Foreigner helpline',
+      Colors.black,
+      false,
+      displayOrder: 6,
+    ),
+    _Contact(
+      '0800474580',
+      'National Dementia Care Hotline',
+      'Dementia support',
+      Colors.black,
+      false,
+      displayOrder: 7,
+    ),
+    _Contact(
+      '1966',
+      'Long-Term Care Service Hotline',
+      'Long-term care',
+      Colors.black,
+      false,
+      displayOrder: 5,
+    ),
+    _Contact(
+      '1995',
+      'Lifeline (caregiver support)',
+      'Caregiver support',
+      Colors.black,
+      false,
+      displayOrder: 8,
+    ),
+    _Contact(
+      '165',
+      'Anti-Fraud Hotline',
+      'Danger or protection',
+      Colors.black,
+      false,
+      displayOrder: 9,
+    ),
   ];
 
   List<_Contact> _primaryContacts = [];
@@ -52,10 +101,10 @@ class _HelpPageState extends State<HelpPage> {
     false,
   );
 
-
   late FlutterTts _flutterTts;
   String? _speakingId;
   bool _moreNumbersExpanded = false;
+  bool _ttsAvailable = false;
 
   @override
   void initState() {
@@ -87,11 +136,17 @@ class _HelpPageState extends State<HelpPage> {
 
     if (mounted) {
       setState(() {
-        _primaryContacts = numbers.where((c) => c.number == '119' || c.number == '1955').toList();
-        _moreContacts = numbers.where((c) => c.number != '119' && c.number != '1955').toList();
+        _primaryContacts = numbers
+            .where((c) => c.number == '119' || c.number == '1955')
+            .toList();
+        _moreContacts = numbers
+            .where((c) => c.number != '119' && c.number != '1955')
+            .toList();
         _moreContacts.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
         _phrases = phrases;
-        _phrases.sort((a, b) => a.id.compareTo(b.id)); // Maintain display order or ID ordering
+        _phrases.sort(
+          (a, b) => a.id.compareTo(b.id),
+        ); // Maintain display order or ID ordering
       });
     }
 
@@ -102,9 +157,15 @@ class _HelpPageState extends State<HelpPage> {
     if (mounted) {
       setState(() {
         if (updatedNumbers != null) {
-          _primaryContacts = updatedNumbers.where((c) => c.number == '119' || c.number == '1955').toList();
-          _moreContacts = updatedNumbers.where((c) => c.number != '119' && c.number != '1955').toList();
-          _moreContacts.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+          _primaryContacts = updatedNumbers
+              .where((c) => c.number == '119' || c.number == '1955')
+              .toList();
+          _moreContacts = updatedNumbers
+              .where((c) => c.number != '119' && c.number != '1955')
+              .toList();
+          _moreContacts.sort(
+            (a, b) => a.displayOrder.compareTo(b.displayOrder),
+          );
         }
         if (updatedPhrases != null) {
           _phrases = updatedPhrases;
@@ -197,56 +258,69 @@ class _HelpPageState extends State<HelpPage> {
 
   Future<void> _initTts() async {
     _flutterTts = FlutterTts();
-
-    try {
-      final List<dynamic>? languages = await _flutterTts.getLanguages;
-      debugPrint('TTS Available Languages: $languages');
-      
-      final List<dynamic>? voices = await _flutterTts.getVoices;
-      debugPrint('TTS Available Voices: $voices');
-
-      // Attempt to set zh-TW
-      int result = await _flutterTts.setLanguage("zh-TW");
-      debugPrint('TTS SetLanguage zh-TW result: $result');
-
-      // Fallback if zh-TW is not supported
-      if (result == 0 && languages != null) {
-        final possibleFallbacks = ['zh_TW', 'zh-CN', 'zh_HK', 'zh'];
-        for (final code in possibleFallbacks) {
-          if (languages.contains(code)) {
-            result = await _flutterTts.setLanguage(code);
-            debugPrint('TTS SetLanguage fallback $code result: $result');
-            if (result == 1) break;
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('TTS Initialization exception: $e');
-    }
-
     await _flutterTts.setSpeechRate(0.6);
 
+    // Web TTS Voices load asynchronously, retry up to 10 times (1 second)
+    List<dynamic>? voices;
+    for (int i = 0; i < 10; i++) {
+      voices = await _flutterTts.getVoices;
+      if (voices != null && voices.isNotEmpty) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (voices == null || voices.isEmpty) {
+      debugPrint('TTS: No voices found after waiting.');
+      return;
+    }
+
+    // Find a Chinese voice
+    Map<dynamic, dynamic>? targetVoice;
+    for (var voice in voices) {
+      final locale = voice['locale']?.toString().toLowerCase() ?? '';
+      if (locale.contains('zh')) {
+        targetVoice = voice;
+        // Prefer Traditional Taiwan if available
+        if (locale == 'zh-tw' || locale == 'zh_tw') {
+          break;
+        }
+      }
+    }
+
+    if (targetVoice != null) {
+      debugPrint('TTS: Setting voice to $targetVoice');
+      await _flutterTts.setVoice({
+        "name": targetVoice["name"],
+        "locale": targetVoice["locale"],
+      });
+      if (mounted)
+        setState(() {
+          _ttsAvailable = true;
+        });
+    } else {
+      debugPrint('TTS: No Chinese voice found in browser.');
+    }
+
     _flutterTts.setStartHandler(() {
-      debugPrint('TTS Speak Started');
       if (mounted) setState(() {});
     });
 
     _flutterTts.setCompletionHandler(() {
-      debugPrint('TTS Speak Completed');
-      if (mounted) {
+      if (mounted)
         setState(() {
           _speakingId = null;
         });
-      }
     });
 
     _flutterTts.setErrorHandler((msg) {
+      if (msg == 'interrupted' || msg == 'canceled') {
+        // Expected: fires when a new phrase interrupts one already playing.
+        return;
+      }
       debugPrint('TTS Error: $msg');
-      if (mounted) {
+      if (mounted)
         setState(() {
           _speakingId = null;
         });
-      }
     });
   }
 
@@ -257,18 +331,24 @@ class _HelpPageState extends State<HelpPage> {
   }
 
   Future<void> _speak(PhrasebookEntry entry) async {
-    debugPrint('TTS requesting speak for ID: ${entry.id}, text: "${entry.ttsPhrase}"');
+    if (!_ttsAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chinese voice pack is not installed on this device.'),
+        ),
+      );
+      return;
+    }
+
     if (_speakingId != null && _speakingId != entry.id) {
       await _flutterTts.stop();
       await Future.delayed(const Duration(milliseconds: 50));
     }
-    // For now we default to Mandarin
     setState(() {
       _speakingId = entry.id;
     });
 
-    final result = await _flutterTts.speak(entry.ttsPhrase);
-    debugPrint('TTS speak call returned: $result');
+    await _flutterTts.speak(entry.ttsPhrase);
   }
 
   Future<void> _makeCall(String number) async {
@@ -740,7 +820,14 @@ class _Contact {
   final bool isLight;
   final int displayOrder;
 
-  const _Contact(this.number, this.name, this.subtitle, this.bg, this.isLight, {this.displayOrder = 0});
+  const _Contact(
+    this.number,
+    this.name,
+    this.subtitle,
+    this.bg,
+    this.isLight, {
+    this.displayOrder = 0,
+  });
 
   static String _labelForCategory(String category) {
     switch (category) {
