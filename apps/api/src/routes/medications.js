@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { isCaregiverAssigned } = require('../lib/authorizeCaregiver');
 const { dayBoundsUtc } = require('../lib/rollupDailySummary');
 const { extractMedicationLabel } = require('../lib/extractMedicationLabel');
+const { slugId, timestampId } = require('../lib/readableId');
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.post(
     const now = new Date();
     const ref = firebase.db
       .collection(`households/${householdId}/careRecipients/${careRecipientId}/medications`)
-      .doc();
+      .doc(slugId(name));
 
     await ref.set({
       name: name.trim(),
@@ -175,9 +176,11 @@ router.post(
       });
     }
 
+    // Name isn't known yet (that's what the photo scan is about) — timestamp
+    // instead of a name slug, same as observations/medicationEvents.
     const medicationId = firebase.db
       .collection(`households/${householdId}/careRecipients/${careRecipientId}/medications`)
-      .doc().id;
+      .doc(timestampId()).id;
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}/label.${extension}`;
 
@@ -376,7 +379,7 @@ router.post(
         const key = `${medDoc.id}|${scheduledAt.toISOString()}`;
         if (existingKeys.has(key)) continue;
 
-        const ref = eventsRef.doc();
+        const ref = eventsRef.doc(timestampId(scheduledAt));
         const eventData = {
           medicationId: medDoc.id,
           scheduledAt,

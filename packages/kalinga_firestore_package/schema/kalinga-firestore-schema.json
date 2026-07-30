@@ -1241,7 +1241,7 @@
     {
       "path": "households/{householdId}",
       "purpose": "Shared care household boundary and primary authorization unit.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableSlug",
       "owner": "household",
       "mixins": [
         "audit",
@@ -1298,7 +1298,7 @@
     {
       "path": "households/{householdId}/invitations/{invitationId}",
       "purpose": "Secure time-limited invitation to a household.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableTimestamp",
       "owner": "household",
       "mixins": [
         "audit"
@@ -1519,7 +1519,7 @@
     {
       "path": "households/{householdId}/careRecipients/{careRecipientId}",
       "purpose": "Older adult or other person receiving care.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableSlug",
       "owner": "household",
       "mixins": [
         "audit",
@@ -1614,7 +1614,7 @@
     {
       "path": "households/{householdId}/careRecipients/{careRecipientId}/observations/{observationId}",
       "purpose": "Caregiver-authored structured observation with original voice/text preserved.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableTimestamp",
       "owner": "household",
       "mixins": [
         "audit",
@@ -1823,7 +1823,7 @@
     {
       "path": "households/{householdId}/careRecipients/{careRecipientId}/medications/{medicationId}",
       "purpose": "Verified medication instruction and schedule; never inferred solely from pill appearance.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableSlugOrTimestamp",
       "owner": "household",
       "mixins": [
         "audit",
@@ -1862,7 +1862,7 @@
     {
       "path": "households/{householdId}/careRecipients/{careRecipientId}/medicationEvents/{eventId}",
       "purpose": "Scheduled medication reminder and caregiver-recorded outcome.",
-      "documentIdStrategy": "autoId",
+      "documentIdStrategy": "readableTimestamp",
       "owner": "household",
       "mixins": [
         "audit",

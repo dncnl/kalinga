@@ -7,6 +7,7 @@ const { STT_LANGUAGE_CODES } = require('../lib/transcribe');
 // Namespace require (not destructured) so tests can mock
 // processObservationJob.processObservationJob directly.
 const processObservationJobLib = require('../lib/processObservationJob');
+const { timestampId } = require('../lib/readableId');
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.post(
 
     const observationId = firebase.db
       .collection(`households/${householdId}/careRecipients/${careRecipientId}/observations`)
-      .doc().id;
+      .doc(timestampId()).id;
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
 
