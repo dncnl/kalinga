@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
 import '../data/phrasebook_data.dart';
+import '../data/content_sync_repository.dart';
 
 class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
@@ -18,33 +19,23 @@ class _HelpPageState extends State<HelpPage> {
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
 
-  static const _primaryContacts = [
-    _Contact(
-      '119',
-      'Ambulance and fire',
-      'Life-threatening emergency',
-      _red,
-      true,
-    ),
-    _Contact(
-      '1955',
-      'Labor helpline',
-      'Free · your language · 24 hours',
-      Colors.black,
-      false,
-    ),
+  static const _bundledNumbers = [
+    _Contact('119', 'Ambulance and fire', 'Ambulance and fire', _red, true, displayOrder: 2),
+    _Contact('1955', 'Labor helpline', 'Labor helpline', Colors.black, false, displayOrder: 4),
+    _Contact('110', 'Police', 'Police', _red, true, displayOrder: 1),
+    _Contact('1990', 'Foreigner hotline', 'Foreigner helpline', Colors.black, false, displayOrder: 6),
+    _Contact('0800474580', 'National Dementia Care Hotline', 'Dementia support', Colors.black, false, displayOrder: 7),
+    _Contact('1966', 'Long-Term Care Service Hotline', 'Long-term care', Colors.black, false, displayOrder: 5),
+    _Contact('1995', 'Lifeline (caregiver support)', 'Caregiver support', Colors.black, false, displayOrder: 8),
+    _Contact('165', 'Anti-Fraud Hotline', 'Danger or protection', Colors.black, false, displayOrder: 9),
   ];
 
-  static const _moreContacts = [
-    _Contact('110', 'Police', 'Danger or crime', _red, true),
-    _Contact(
-      '1990',
-      'Foreigner hotline',
-      'Living and visa questions',
-      Colors.black,
-      false,
-    ),
-  ];
+  List<_Contact> _primaryContacts = [];
+  List<_Contact> _moreContacts = [];
+  List<PhrasebookEntry> _phrases = phrasebookSeed;
+
+  late final ContentSyncRepository<_Contact> _numbersRepo;
+  late final ContentSyncRepository<PhrasebookEntry> _phrasebookRepo;
 
   _Contact _familyContact = const _Contact(
     '0912 345 678',
@@ -61,6 +52,7 @@ class _HelpPageState extends State<HelpPage> {
     false,
   );
 
+
   late FlutterTts _flutterTts;
   String? _speakingId;
   bool _moreNumbersExpanded = false;
@@ -70,6 +62,56 @@ class _HelpPageState extends State<HelpPage> {
     super.initState();
     _initTts();
     _loadContacts();
+    _initContentSync();
+  }
+
+  Future<void> _initContentSync() async {
+    _numbersRepo = ContentSyncRepository<_Contact>(
+      collectionPath: 'governmentServices',
+      cacheKey: 'government_services_cache',
+      fromJson: _Contact.fromJson,
+      toJson: (c) => c.toJson(),
+      bundledSeed: _bundledNumbers,
+    );
+    _phrasebookRepo = ContentSyncRepository<PhrasebookEntry>(
+      collectionPath: 'emergencyPhrasebooks/core-1.0.0/phrases',
+      cacheKey: 'emergency_phrases_cache',
+      fromJson: PhrasebookEntry.fromJson,
+      toJson: (p) => p.toJson(),
+      bundledSeed: phrasebookSeed,
+    );
+
+    // Initial load from cache or bundled seed
+    final numbers = await _numbersRepo.getInitial();
+    final phrases = await _phrasebookRepo.getInitial();
+
+    if (mounted) {
+      setState(() {
+        _primaryContacts = numbers.where((c) => c.number == '119' || c.number == '1955').toList();
+        _moreContacts = numbers.where((c) => c.number != '119' && c.number != '1955').toList();
+        _moreContacts.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+        _phrases = phrases;
+        _phrases.sort((a, b) => a.id.compareTo(b.id)); // Maintain display order or ID ordering
+      });
+    }
+
+    // Background sync
+    final updatedNumbers = await _numbersRepo.syncInBackground();
+    final updatedPhrases = await _phrasebookRepo.syncInBackground();
+
+    if (mounted) {
+      setState(() {
+        if (updatedNumbers != null) {
+          _primaryContacts = updatedNumbers.where((c) => c.number == '119' || c.number == '1955').toList();
+          _moreContacts = updatedNumbers.where((c) => c.number != '119' && c.number != '1955').toList();
+          _moreContacts.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+        }
+        if (updatedPhrases != null) {
+          _phrases = updatedPhrases;
+          _phrases.sort((a, b) => a.id.compareTo(b.id));
+        }
+      });
+    }
   }
 
   Future<void> _loadContacts() async {
@@ -155,14 +197,42 @@ class _HelpPageState extends State<HelpPage> {
 
   Future<void> _initTts() async {
     _flutterTts = FlutterTts();
-    await _flutterTts.setLanguage("zh-TW");
+
+    try {
+      final List<dynamic>? languages = await _flutterTts.getLanguages;
+      debugPrint('TTS Available Languages: $languages');
+      
+      final List<dynamic>? voices = await _flutterTts.getVoices;
+      debugPrint('TTS Available Voices: $voices');
+
+      // Attempt to set zh-TW
+      int result = await _flutterTts.setLanguage("zh-TW");
+      debugPrint('TTS SetLanguage zh-TW result: $result');
+
+      // Fallback if zh-TW is not supported
+      if (result == 0 && languages != null) {
+        final possibleFallbacks = ['zh_TW', 'zh-CN', 'zh_HK', 'zh'];
+        for (final code in possibleFallbacks) {
+          if (languages.contains(code)) {
+            result = await _flutterTts.setLanguage(code);
+            debugPrint('TTS SetLanguage fallback $code result: $result');
+            if (result == 1) break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('TTS Initialization exception: $e');
+    }
+
     await _flutterTts.setSpeechRate(0.6);
 
     _flutterTts.setStartHandler(() {
+      debugPrint('TTS Speak Started');
       if (mounted) setState(() {});
     });
 
     _flutterTts.setCompletionHandler(() {
+      debugPrint('TTS Speak Completed');
       if (mounted) {
         setState(() {
           _speakingId = null;
@@ -171,7 +241,7 @@ class _HelpPageState extends State<HelpPage> {
     });
 
     _flutterTts.setErrorHandler((msg) {
-      debugPrint('TTS error type: ${msg.runtimeType}, value: $msg');
+      debugPrint('TTS Error: $msg');
       if (mounted) {
         setState(() {
           _speakingId = null;
@@ -187,6 +257,7 @@ class _HelpPageState extends State<HelpPage> {
   }
 
   Future<void> _speak(PhrasebookEntry entry) async {
+    debugPrint('TTS requesting speak for ID: ${entry.id}, text: "${entry.ttsPhrase}"');
     if (_speakingId != null && _speakingId != entry.id) {
       await _flutterTts.stop();
       await Future.delayed(const Duration(milliseconds: 50));
@@ -196,7 +267,8 @@ class _HelpPageState extends State<HelpPage> {
       _speakingId = entry.id;
     });
 
-    await _flutterTts.speak(entry.ttsPhrase); // was: entry.targetPhrase
+    final result = await _flutterTts.speak(entry.ttsPhrase);
+    debugPrint('TTS speak call returned: $result');
   }
 
   Future<void> _makeCall(String number) async {
@@ -379,9 +451,9 @@ class _HelpPageState extends State<HelpPage> {
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: phrasebookSeed.length,
+          itemCount: _phrases.length,
           itemBuilder: (context, index) {
-            final entry = phrasebookSeed[index];
+            final entry = _phrases[index];
             final isSpeaking = _speakingId == entry.id;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -666,7 +738,53 @@ class _Contact {
   final String number, name, subtitle;
   final Color bg;
   final bool isLight;
-  const _Contact(this.number, this.name, this.subtitle, this.bg, this.isLight);
+  final int displayOrder;
+
+  const _Contact(this.number, this.name, this.subtitle, this.bg, this.isLight, {this.displayOrder = 0});
+
+  static String _labelForCategory(String category) {
+    switch (category) {
+      case 'police':
+        return 'Police';
+      case 'fireMedicalEmergency':
+        return 'Ambulance and fire';
+      case 'protection':
+        return 'Danger or protection';
+      case 'labor':
+        return 'Labor helpline';
+      case 'longTermCare':
+        return 'Long-term care';
+      case 'generalForeignerSupport':
+        return 'Foreigner helpline';
+      case 'dementiaSupport':
+        return 'Dementia support';
+      case 'caregiverSupport':
+        return 'Caregiver support';
+      default:
+        return category;
+    }
+  }
+
+  factory _Contact.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] as String;
+    final isEmergency = json['emergency'] as bool? ?? false;
+    return _Contact(
+      json['phoneNumber'] as String? ?? json['shortName'] as String,
+      json['officialName'] as String,
+      _labelForCategory(category),
+      isEmergency ? _HelpPageState._red : Colors.black,
+      isEmergency,
+      displayOrder: json['displayOrder'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'phoneNumber': number,
+    'officialName': name,
+    'category': subtitle,
+    'emergency': isLight,
+    'displayOrder': displayOrder,
+  };
 }
 
 class _ContactCard extends StatelessWidget {

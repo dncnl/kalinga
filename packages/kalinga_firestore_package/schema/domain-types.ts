@@ -206,6 +206,8 @@ export interface EmergencyPhraseDocument extends AuditFields {
   requiresImmediateCall: boolean;
   displayOrder: number;
   status: 'draft' | 'approved' | 'retired';
+  ttsPhrase: string | null;
+  targetRomanization: string | null;
 }
 
 /**

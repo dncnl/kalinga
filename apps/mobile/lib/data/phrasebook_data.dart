@@ -24,6 +24,46 @@ class PhrasebookEntry {
     required this.urgencyLevel,
     required this.patientLanguage,
   });
+
+  factory PhrasebookEntry.fromJson(Map<String, dynamic> json) {
+    final localized = json['localizedText'] as Map<String, dynamic>;
+    final reqCall = json['requiresImmediateCall'] as bool? ?? false;
+    final categoryStr = json['category'] as String;
+
+    Category cat;
+    if (categoryStr == 'medicalEmergency' || categoryStr == 'fireMedicalEmergency') {
+      cat = Category.medicalEmergency;
+    } else if (categoryStr == 'dementia' || categoryStr == 'dementiaSupport') {
+      cat = Category.dementia;
+    } else if (categoryStr == 'medication') {
+      cat = Category.medication;
+    } else {
+      cat = Category.selfAdvocacy;
+    }
+
+    return PhrasebookEntry(
+      id: json['scenarioKey'] as String,
+      targetPhrase: localized['zh-TW'] as String,
+      ttsPhrase: json['ttsPhrase'] as String? ?? localized['zh-TW'] as String,
+      targetRomanization: json['targetRomanization'] as String? ?? '',
+      caregiverGloss: localized['en'] as String,
+      category: cat,
+      urgencyLevel: reqCall ? UrgencyLevel.high : UrgencyLevel.normal,
+      patientLanguage: PatientLanguage.mandarin,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'scenarioKey': id,
+    'localizedText': {
+      'zh-TW': targetPhrase,
+      'en': caregiverGloss,
+    },
+    'ttsPhrase': ttsPhrase,
+    'targetRomanization': targetRomanization,
+    'category': category.name,
+    'requiresImmediateCall': urgencyLevel == UrgencyLevel.high,
+  };
 }
 
 // NOTE: ttsPhrase resolves 他/她 -> 她 for now since the phrasebook is

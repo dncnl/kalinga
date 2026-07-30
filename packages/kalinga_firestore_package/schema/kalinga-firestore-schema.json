@@ -503,7 +503,9 @@
         "recommendedServiceId": "string|null",
         "requiresImmediateCall": "boolean",
         "displayOrder": "integer",
-        "status": "draft|approved|retired"
+        "status": "draft|approved|retired",
+        "ttsPhrase": "string|null",
+        "targetRomanization": "string|null"
       },
       "recommendedQueriesAndIndexes": [
         "status ASC, displayOrder ASC"
