@@ -109,6 +109,8 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
                 _buildGreetingCard(),
                 const SizedBox(height: 16),
                 _buildStartLogButton(),
+                const SizedBox(height: 10),
+                _buildSymptomCheckButton(),
                 const SizedBox(height: 28),
                 _buildQuickActions(),
                 const SizedBox(height: 28),
@@ -334,6 +336,33 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
           elevation: 2,
           shadowColor: _red.withValues(alpha: 0.35),
+        ),
+      ),
+    );
+  }
+
+  // ── Symptom check-in (F1) ──────────────────────────────────────────────────
+  //
+  // Its own full-width button rather than a fifth quick-action icon: this is
+  // the path someone takes when they think something is wrong right now, and
+  // it should be findable without reading a row of small labels. Calm styling
+  // on purpose — an alarming red button invites panic taps.
+
+  Widget _buildSymptomCheckButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => context.push('/symptom-check'),
+        icon: const Icon(Icons.health_and_safety_outlined, size: 20),
+        label: Text(
+          'Something is wrong',
+          style: AppTextStyles.bodyMedium(fontSize: 16).copyWith(color: Colors.black87),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black87,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
         ),
       ),
     );

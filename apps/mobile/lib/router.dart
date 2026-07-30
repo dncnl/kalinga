@@ -13,6 +13,7 @@ import 'pages/prototype_home_page.dart';
 import 'pages/prototype_patient_detail_page.dart';
 import 'pages/prototype_patient_schedule_page.dart';
 import 'pages/prototype_checkin_page.dart';
+import 'pages/symptom_check_page.dart';
 import 'pages/prototype_log_page.dart';
 import 'pages/ask_page.dart';
 import 'pages/meds_page.dart';
@@ -88,6 +89,7 @@ final router = GoRouter(
         builder: (c, s) => PrototypePatientSchedulePage(patientId: s.pathParameters['id']!)),
     GoRoute(path: '/checkin/:scheduleId',
         builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
+    GoRoute(path: '/symptom-check', builder: (c, s) => const SymptomCheckPage()),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
     GoRoute(path: '/auth',

@@ -26,6 +26,25 @@ the full demo path (§Definition of done below) passes end to end.
 4. Verify in Phase 2: invite-code format vs `main`'s post-fork commits
    `b10bcd9` (join codes + authz) and `b40815c` (human-readable ids).
 
+## Backend changes made (required log — all additive, none breaking)
+
+1. `POST /households/:hid/care-recipients/:crid/observations/symptom-check`
+   — **new route** (F1). Could not be solved on the frontend: the existing
+   observation path starts from an audio upload and a tap-based triage has
+   no audio, so there was no way to record a check-in at all. Everything
+   downstream is reused unchanged (same collection, same document builder,
+   same daily/weekly rollups). No existing route touched.
+2. `apps/api/src/lib/symptomTriage.js` — **new lib**, the deterministic
+   urgency rule table + its 9 tests.
+3. `buildObservationDocument({ …, inputMode })` — **new optional
+   parameter**, defaulting to `'voice'` so every existing caller behaves
+   identically. `'structuredForm'` is a value the schema's
+   `inputMode: "voice|text|structuredForm"` already declares, so this is
+   not a schema change.
+
+Nothing else under `apps/api` or `packages/kalinga_firestore_package` was
+modified beyond the RAG system-prompt commit listed above.
+
 ## Decisions (confirmed)
 
 - Uncommitted RAG system-prompt improvement (`answer.js`: answer in the
@@ -77,14 +96,27 @@ the full demo path (§Definition of done below) passes end to end.
 | `ask_page` | `POST /rag/ask` | wired (pre-existing) |
 | `invite_sheet` | `POST /households/:id/invitations` | verified ✓ (contract fixed) |
 | `help_page` | static, by design — vetted hotlines + phrasebook | **F6 done ✓** |
+| `symptom_check_page` | `POST …/observations/symptom-check` + `/rag/ask` | **F1 done ✓** |
 | `activity_page` | hardcoded `_items` fixture | **still mock** |
 | `prototype_patient_schedule_page` | local `_ScheduleEntry` list | **still mock** → F2 |
 | `prototype_checkin_page` | hardcoded schedule map | **still mock** → F3 |
 
 - [ ] Phase 3 — features
   - [ ] F0 scoping audit (careRecipientId threaded through every screen)
-  - [ ] F1 structured symptom check-in (tap decision-tree + voice follow-up
-        via existing pipeline, urgency flag + Mandarin summary)
+  - [x] F1 structured symptom check-in. Tap-based tree over six red flags
+        (breathing, chest pain, fall, sudden confusion, fever, not
+        eating/drinking) — scope confirmed with Ralph. **Urgency is
+        deterministic**, from a fixed rule table in
+        `apps/api/src/lib/symptomTriage.js`, never from an LLM: a
+        hallucinated "sounds fine" here means somebody doesn't call 119.
+        The schema anticipated this (`safetyRuleSets` = "deterministic
+        routing… no autonomous diagnosis"). 9 unit tests assert every red
+        flag escalates and that non-boolean answers can't trip one.
+        RAG is used only for "while you wait" guidance, shown with sources
+        and unable to change the urgency. Voice follow-up reuses the F4
+        pipeline unchanged (records → `submitVoiceLog`), no second speech
+        path. Result: urgency + action + the Mandarin text the family will
+        see, stored as an observation so it feeds the same rollups.
   - [ ] F2 labeled reminders (reuse tasks/taskEvents pattern)
   - [ ] F3 reminder-triggered structured check-ins (feed existing rollups)
   - [ ] F5 "must remember" + insights from existing rollups
