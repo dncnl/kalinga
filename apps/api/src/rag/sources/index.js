@@ -8,4 +8,5 @@ module.exports = [
   require('./taiwan-ltc-policy-transformation'),
   require('./who-icope'),
   require('./ncbi-medication-safety-older-adults'),
+  require('./ncbi-abdominal-emergencies-elderly'),
 ];

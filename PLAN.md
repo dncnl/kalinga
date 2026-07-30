@@ -285,10 +285,23 @@ Firebase + real embeddings + real OpenRouter: ingest (4 sources → 10
 chunks), a grounded question (correct cited answer), and an off-topic
 question (correct refusal, no irrelevant citations).
 
+## Mobile: wired to the Ask screen
+
+Update: turns out there's already an "Ask about a symptom" screen
+(`apps/mobile/lib/pages/ask_page.dart`, the `/ask` route — 2nd bottom-nav
+tab) that was previously just a static text field with suggested prompts
+and no backend call. Wired it to `POST /rag/ask` via a new
+`lib/services/rag_service.dart`. Answer + numbered sources render below the
+input; loading and error states handled. Factored the anonymous-auth-token
+logic (previously only in `ObservationService`) out into
+`lib/services/auth_token.dart` so both services share it instead of
+duplicating.
+
 ## Known gaps / open questions
 
-- No UI — user explicitly said this isn't needed yet; it's a backend
-  capability waiting for a consumer (symptom checker feature, most likely).
+- No dedicated new UI screen — used the existing Ask screen instead of
+  building one, since it already matched this feature's purpose (originally
+  no UI was thought necessary, then this fit was found).
 - No scheduler/webhook re-runs ingest automatically — manual
   `node src/rag/ingest.js` after editing `sources/`.
 - Corpus is small (4 documents) and hand-picked by web search, not a
