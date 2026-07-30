@@ -125,9 +125,31 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
       records, a composite index (`urgency ASC, createdAt DESC`), and a
       matching `firestore.rules` block (`authorizedCareTeam`, same shape as
       `dailySummaries`). `npm run validate` passes clean.
-- [ ] Backend urgency classification
-- [ ] Backend symptom-check endpoint (RAG + translate + urgency + alert)
-- [ ] Backend history endpoint
+- [x] Backend urgency classification — `apps/api/src/rag/classifyUrgency.js`,
+      same OpenRouter fallback-chain pattern as `extractObservation.js`/
+      `extractMedicationLabel.js`. Backstopped with a keyword floor (chest
+      pain, unresponsive, etc. force at least `urgent`) so a model
+      under-call or total model failure can never silently produce `none` —
+      falls back to `attention` at worst, never drops below the keyword
+      floor even if every model call fails.
+- [x] Backend symptom-check endpoint —
+      `POST /households/:h/care-recipients/:c/symptom-check`
+      (`apps/api/src/routes/symptomCheck.js`): RAG-answers directly in the
+      caregiver's language (`rag/answer.js`'s new `answerSymptomCheck`,
+      grounding unchanged from the existing `/rag/ask` discipline),
+      classifies urgency, translates the caregiver's message to Mandarin
+      (`familySummaryZh`), saves a `symptomChecks` doc, and — only when
+      urgency is `urgent`/`emergency` — writes a real `alerts` doc with
+      `recipientUids` pulled from active `householdAdmin`/`family`/
+      `clinician` members. First code in the repo to ever write to `alerts`.
+- [x] Backend history endpoint — `GET .../symptom-check`, most recent 50,
+      Firestore `Timestamp` explicitly serialized to ISO string (same fix
+      as Feature 4's medication-events bug).
+- [x] Unit tests: `test/rag/classifyUrgency.test.js` (6 tests, incl. keyword
+      floor + total-failure fallback) and `test/routes/symptomCheck.test.js`
+      (7 tests, incl. non-urgent/no-alert vs. urgent/alert-created paths).
+      Full suite: 119/122 pass; same 3 pre-existing OpenRouter rate-limit
+      flakes as Feature 4, unrelated to this branch.
 - [ ] Mobile LocaleState (real language persistence)
 - [ ] Mobile ask_page.dart wired
 - [ ] Live test
