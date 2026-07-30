@@ -3,18 +3,63 @@
 // completion). Change which model runs by setting env vars, not by editing
 // call sites:
 //
-//   LLM_PROVIDER=openrouter   (default; free-tier, no billing required)
+//   LLM_PROVIDER=vertexai     (default; Google Cloud project's own billing,
+//                              no separate API key — see googleAuthOptions()
+//                              in ../firebase.js)
+//   LLM_PROVIDER=openrouter   (fallback; free-tier, no billing required)
 //   LLM_PROVIDER=anthropic    (needs ANTHROPIC_API_KEY + billing)
 //   LLM_PROVIDER=openai       (needs OPENAI_API_KEY + billing)
 //   LLM_MODEL=<provider-specific model id>
+//   VERTEX_AI_LOCATION=<region>  (default: us-central1)
 //
-// Only "openrouter" is actually implemented right now — see PLAN.md for
-// why (no Anthropic/OpenAI billing available at time of writing). The
-// other two are stubbed with a clear error so swapping providers later is
-// "fill in the fetch call," not "redesign the interface."
+// anthropic/openai are stubbed with a clear error so swapping providers
+// later is "fill in the fetch call," not "redesign the interface."
 
-const DEFAULT_PROVIDER = process.env.LLM_PROVIDER || 'openrouter';
-const DEFAULT_MODEL = process.env.LLM_MODEL || 'openai/gpt-oss-20b:free';
+const DEFAULT_PROVIDER = process.env.LLM_PROVIDER || 'vertexai';
+const DEFAULT_MODEL = process.env.LLM_MODEL || 'gemini-2.5-flash';
+const VERTEX_AI_LOCATION = process.env.VERTEX_AI_LOCATION || 'us-central1';
+
+// Same identity as every other Google Cloud client in this codebase
+// (Speech, Translate, the RAG bucket's @google-cloud/storage client) —
+// see googleAuthOptions()'s own comment in ../firebase.js for why plain
+// @google/* clients need this instead of just relying on firebase-admin.
+function getVertexAIClient() {
+  const { GoogleGenAI } = require('@google/genai');
+  const { googleAuthOptions, projectId } = require('../firebase');
+  return new GoogleGenAI({
+    vertexai: true,
+    project: projectId,
+    location: VERTEX_AI_LOCATION,
+    googleAuthOptions: googleAuthOptions(),
+  });
+}
+
+async function callVertexAI({ system, prompt, model }) {
+  // Via module.exports (not the bare local name) so tests can mock the
+  // client construction without exercising real @google/genai auth/network.
+  const ai = module.exports.getVertexAIClient();
+  const response = await ai.models.generateContent({
+    model,
+    contents: prompt,
+    config: system ? { systemInstruction: system } : undefined,
+  });
+  return response.text ?? '';
+}
+
+async function callVertexAIStructured({ system, prompt, schema, model }) {
+  const ai = module.exports.getVertexAIClient();
+  const response = await ai.models.generateContent({
+    model,
+    contents: prompt,
+    config: {
+      ...(system ? { systemInstruction: system } : {}),
+      responseMimeType: 'application/json',
+      responseJsonSchema: schema,
+    },
+  });
+  const text = response.text ?? '';
+  return JSON.parse(text);
+}
 
 async function callOpenRouter({ system, prompt, model }) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -52,15 +97,28 @@ async function callOpenAI() {
   throw new Error('LLM_PROVIDER=openai is not implemented yet (needs OPENAI_API_KEY + billing).');
 }
 
+function notImplementedStructured(provider) {
+  return async () => {
+    throw new Error(`Structured generation for LLM_PROVIDER=${provider} is not implemented — use vertexai.`);
+  };
+}
+
 const PROVIDERS = {
+  vertexai: callVertexAI,
   openrouter: callOpenRouter,
   anthropic: callAnthropic,
   openai: callOpenAI,
 };
 
+const STRUCTURED_PROVIDERS = {
+  vertexai: callVertexAIStructured,
+  openrouter: notImplementedStructured('openrouter'),
+  anthropic: notImplementedStructured('anthropic'),
+  openai: notImplementedStructured('openai'),
+};
+
 // Plain chat completion: system prompt + user prompt in, text out. No
-// tool-calling here — see extractObservation.js for that pattern if a
-// future caller needs structured output.
+// tool-calling here — see generateStructured for schema-constrained output.
 async function generateText({ system, prompt, provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL }) {
   const call = PROVIDERS[provider];
   if (!call) {
@@ -69,4 +127,15 @@ async function generateText({ system, prompt, provider = DEFAULT_PROVIDER, model
   return call({ system, prompt, model });
 }
 
-module.exports = { generateText, DEFAULT_PROVIDER, DEFAULT_MODEL };
+// Schema-constrained JSON output: system prompt + user prompt + JSON Schema
+// in, parsed object out. For extracting structured data (see
+// extractObservation.js) rather than free-form text.
+async function generateStructured({ system, prompt, schema, provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL }) {
+  const call = STRUCTURED_PROVIDERS[provider];
+  if (!call) {
+    throw new Error(`Unknown LLM_PROVIDER "${provider}". Valid: ${Object.keys(STRUCTURED_PROVIDERS).join(', ')}`);
+  }
+  return call({ system, prompt, schema, model });
+}
+
+module.exports = { generateText, generateStructured, getVertexAIClient, DEFAULT_PROVIDER, DEFAULT_MODEL };
