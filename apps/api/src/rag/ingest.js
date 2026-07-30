@@ -11,6 +11,7 @@
 // scheduler/trigger wired up — re-run it whenever sources/ changes.
 require('dotenv').config({ quiet: true });
 
+const { FieldValue } = require('firebase-admin/firestore');
 const { db } = require('../firebase');
 const { chunkText } = require('./chunk');
 const { embedBatch } = require('./embeddings');
@@ -23,10 +24,13 @@ async function ingestAll() {
     const chunks = chunkText(source.text);
     const embeddings = await embedBatch(chunks);
 
-    const batch = db.batch();
+    // BulkWriter, not batch() — batch() hard-caps at 500 writes per commit,
+    // which a large source document's chunk count can easily exceed.
+    // BulkWriter handles chunking/rate-limiting/retries internally.
+    const bulkWriter = db.bulkWriter();
     chunks.forEach((chunkContent, i) => {
       const ref = db.collection('ragChunks').doc(`${source.id}-${i}`);
-      batch.set(ref, {
+      bulkWriter.set(ref, {
         sourceId: source.id,
         sourceTitle: source.title,
         sourcePublisher: source.publisher,
@@ -35,10 +39,10 @@ async function ingestAll() {
         sourceCategory: source.category,
         chunkIndex: i,
         text: chunkContent,
-        embedding: embeddings[i],
+        embedding: FieldValue.vector(embeddings[i]),
       });
     });
-    await batch.commit();
+    await bulkWriter.close();
 
     console.log(`  ${source.id}: ${chunks.length} chunks`);
     totalChunks += chunks.length;
