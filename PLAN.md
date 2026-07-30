@@ -132,3 +132,101 @@ the selected profile.
       available here). The pieces are proven live individually
       (bootstrap+list via the real app, create+voice-log chain via the
       same endpoints in Step 1), not as one unbroken UI click-through.)
+
+---
+
+# Phase 2: Closing the gaps
+
+After live-testing Phase 1, five real gaps were identified and the user
+asked to close all of them:
+
+1. Can't edit or delete a profile once created
+2. Can't remove/switch households — one auto-created household per
+   caregiver, no invite/linking flow
+3. No multi-caregiver support — schema allows multiple caregivers per
+   recipient, nothing lets a second one join
+4. Family/doctor linking isn't wired to real profiles — "preview what
+   family sees" just reuses the caregiver's own selected profile
+5. 6 screens (`meds`, `help`, `activity`, `schedule`, `settings`,
+   `checkin`) still show the hardcoded "Lola Rosa" header
+
+## Key discovery grounding this phase
+
+`packages/kalinga_firestore_package/firestore.rules` already has the full
+access model built: `isPrivilegedHouseholdMember` (role in
+`family`/`careCoordinator`/`clinician`/`householdAdmin`/`agencyStaff`) OR
+`isAssignedCaregiver` (caregiver role + an active assignment doc) both
+satisfy `canAccessCareRecipient`, which gates reads on `weeklySummaries`,
+`dailySummaries`, `observations`, etc. **A family member just needs an
+active `households/{id}/members/{uid}` doc with `role: 'family'`** — no
+extra assignment doc, no extra plumbing. Multi-caregiver is the same
+mechanism plus a per-recipient assignment doc. This means gaps 2-4 all
+collapse into **one real feature: a working household invite system.**
+
+`apps/mobile/lib/services/invite_service.dart` already exists as a
+deliberately-scoped stub — its doc comment names the exact contract to
+build against: `GET /invites/:token` (public, unauthenticated — the
+invitee has no account yet) and `POST /invites/:token/accept`
+(authenticated). `family_register_page.dart` (`/invite/:token`) already
+consumes it. This phase mostly fills in that seam rather than inventing a
+new one.
+
+## Steps
+
+1. **Backend: edit/delete care recipient** — `PATCH` and `DELETE` (soft —
+   `status: 'archived'`, per the schema's own soft-delete mixin) on
+   `/households/:householdId/care-recipients/:id`.
+2. **Backend: `careRecipientLocations/{id}` lookup** — same pragmatic
+   pattern as `householdMemberships/{uid}`. Needed so an invite or a
+   family viewer can resolve "which household is this recipient in" from
+   just a recipient id, without a collection-group query.
+3. **Backend: invitation system**
+   - `POST /households/:householdId/invitations` — caregiver creates an
+     invite (`intendedRole`: `family` or `caregiver`, invited email,
+     optional `careRecipientId`). Returns a token.
+   - `GET /invites/:token` — public, no auth. Resolves the invite,
+     inviter's display name, and (if scoped) the recipient's name.
+   - `POST /invites/:token/accept` — authenticated (invitee just created
+     their Firebase account client-side). Adds them as a household member
+     with `intendedRole`; if `caregiver` + a `careRecipientId`, also
+     creates the per-recipient assignment doc so
+     `isAssignedCaregiver`/`isCaregiverAssigned` actually pass.
+4. **Backend: multi-household membership + switch** — `householdMemberships/{uid}`
+   changes shape from a single `householdId` to `{ householdIds: [...],
+   activeHouseholdId }`, since accepting an invite to someone else's
+   household means the invitee now belongs to two. New
+   `POST /households/switch` sets which one is active (must already be a
+   member).
+5. **Mobile: wire the real `InviteService`** — replace the two `TODO(api)`
+   stub methods with real HTTP calls to the endpoints above. No other file
+   should need to change — that was the point of the existing seam.
+6. **Mobile: "invite family/caregiver" UI** — an entry point (likely off
+   the patient detail page's existing "Linked viewers" row) to create an
+   invite and surface the resulting link. No email-sending infrastructure
+   exists, so this shows/copies the link for manual sharing rather than
+   actually emailing it.
+7. **Mobile: household switcher UI** — minimal: something in the profile
+   picker to see which household is active and switch if the caregiver
+   belongs to more than one (e.g. accepted someone else's invite).
+8. **Mobile: edit/delete profile UI** — reuse `prototype_patient_page.dart`
+   in an edit mode (prefilled, calls `PATCH` instead of `POST`), plus a
+   delete action (likely on the patient detail page).
+9. **Mobile: wire the remaining 6 screens' headers** to `SelectedProfile`,
+   same pattern already used on home/log — mechanical, no new concepts.
+10. **Test live** — especially the invite accept chain, since it's the
+    highest-risk new mechanism (two different Firebase Auth identities,
+    two different households, real `firestore.rules` enforcement instead
+    of just our own Express middleware).
+
+## Progress
+
+- [ ] Backend edit/delete care recipient
+- [ ] Backend careRecipientLocations lookup
+- [ ] Backend invitation system (create / fetch / accept)
+- [ ] Backend multi-household membership + switch
+- [ ] Mobile InviteService wired to real endpoints
+- [ ] Mobile invite-family/caregiver UI
+- [ ] Mobile household switcher UI
+- [ ] Mobile edit/delete profile UI
+- [ ] Mobile remaining 6 screens' headers wired
+- [ ] Live test
