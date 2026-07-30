@@ -11,9 +11,10 @@ import 'pages/prototype_patient_page.dart';
 import 'pages/profile_picker_page.dart';
 import 'pages/prototype_home_page.dart';
 import 'pages/prototype_patient_detail_page.dart';
-import 'pages/prototype_patient_schedule_page.dart';
-import 'pages/prototype_checkin_page.dart';
+import 'pages/reminders_page.dart';
+import 'pages/reminder_checkin_page.dart';
 import 'pages/symptom_check_page.dart';
+import 'services/reminder_service.dart';
 import 'pages/prototype_log_page.dart';
 import 'pages/ask_page.dart';
 import 'pages/meds_page.dart';
@@ -86,9 +87,14 @@ final router = GoRouter(
     GoRoute(path: '/patients/:id',
         builder: (c, s) => PrototypePatientDetailPage(patientId: s.pathParameters['id']!)),
     GoRoute(path: '/patients/:id/schedules',
-        builder: (c, s) => PrototypePatientSchedulePage(patientId: s.pathParameters['id']!)),
-    GoRoute(path: '/checkin/:scheduleId',
-        builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
+        builder: (c, s) => RemindersPage(patientId: s.pathParameters['id']!)),
+    // The ReminderEvent comes through `extra` so the check-in can render its
+    // question set immediately; it degrades to a plain note if opened cold.
+    GoRoute(path: '/checkin/:eventId',
+        builder: (c, s) => ReminderCheckinPage(
+              eventId: s.pathParameters['eventId']!,
+              event: s.extra as ReminderEvent?,
+            )),
     GoRoute(path: '/symptom-check', builder: (c, s) => const SymptomCheckPage()),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),

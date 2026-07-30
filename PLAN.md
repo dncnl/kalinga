@@ -41,6 +41,17 @@ the full demo path (§Definition of done below) passes end to end.
    identically. `'structuredForm'` is a value the schema's
    `inputMode: "voice|text|structuredForm"` already declares, so this is
    not a schema change.
+4. `apps/api/src/routes/tasks.js` — **new routes** (F2/F3):
+   `POST|GET .../tasks`, `DELETE .../tasks/:taskId`,
+   `POST .../task-events/generate-today`,
+   `POST .../task-events/:eventId/complete`. Could not be solved on the
+   frontend: `tasks`/`taskEvents` are `serverOnly` for client writes per
+   the schema, and no route exposed them. All four mirror the equivalent
+   medication routes rather than inventing a new shape.
+5. `apps/api/src/lib/reminderCheckin.js` — **new lib**, the F3 question
+   sets and their score mapping, plus 9 tests.
+
+No existing route's shape or authorization was changed at any point.
 
 Nothing else under `apps/api` or `packages/kalinga_firestore_package` was
 modified beyond the RAG system-prompt commit listed above.
@@ -97,9 +108,9 @@ modified beyond the RAG system-prompt commit listed above.
 | `invite_sheet` | `POST /households/:id/invitations` | verified ✓ (contract fixed) |
 | `help_page` | static, by design — vetted hotlines + phrasebook | **F6 done ✓** |
 | `symptom_check_page` | `POST …/observations/symptom-check` + `/rag/ask` | **F1 done ✓** |
+| `reminders_page` | `tasks` CRUD | **F2 done ✓** (replaced the mock) |
+| `reminder_checkin_page` | `task-events/:id/complete` → observation | **F3 done ✓** (replaced the mock) |
 | `activity_page` | hardcoded `_items` fixture | **still mock** |
-| `prototype_patient_schedule_page` | local `_ScheduleEntry` list | **still mock** → F2 |
-| `prototype_checkin_page` | hardcoded schedule map | **still mock** → F3 |
 
 - [ ] Phase 3 — features
   - [ ] F0 scoping audit (careRecipientId threaded through every screen)
@@ -117,8 +128,25 @@ modified beyond the RAG system-prompt commit listed above.
         pipeline unchanged (records → `submitVoiceLog`), no second speech
         path. Result: urgency + action + the Mandarin text the family will
         see, stored as an observation so it feeds the same rollups.
-  - [ ] F2 labeled reminders (reuse tasks/taskEvents pattern)
-  - [ ] F3 reminder-triggered structured check-ins (feed existing rollups)
+  - [x] F2 labeled reminders. Reuses the schema's existing `tasks` +
+        `taskEvents` pair — the same definition/materialized-occurrence
+        split the medication reminders already use, including the same
+        "generate today + list in one round trip" call. Labels map onto the
+        existing `TaskCategory` enum (Eating → `meal`, Exercise →
+        `exercise`, Medication, Drinking water → `hydration`, custom →
+        `other` with the typed label in `title`). No new data modelling.
+        Replaced the hardcoded schedule page.
+  - [x] F3 reminder-triggered structured check-ins. Eating and Exercise
+        reminders open a short question set; the answers become an
+        observation through the **same** builder and rollups as the voice
+        log, so `appetiteLevel`/mobility land in the existing trend charts.
+        The schema's `taskEvent.relatedObservationId` links the two. Any
+        other label just completes with an optional note — inventing
+        questions for an unknown label would produce meaningless trends.
+        Scores only move for the dimension actually asked about (answering
+        about lunch never fabricates a sleep score); 9 tests cover this.
+        Voice alternative reuses the F4 pipeline. Replaced the hardcoded
+        check-in page.
   - [ ] F5 "must remember" + insights from existing rollups
   - [x] F6 emergency contacts + phrasebook. 119 / 110 / 1955 /
         0800-024-111 (NIA foreign-resident line), real `tel:` dialling via
