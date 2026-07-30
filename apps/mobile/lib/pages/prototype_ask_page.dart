@@ -10,7 +10,7 @@ class PrototypeAskPage extends StatefulWidget {
 }
 
 class _PrototypeAskPageState extends State<PrototypeAskPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
 

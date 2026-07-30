@@ -18,7 +18,7 @@ class FamilyRegisterPage extends StatefulWidget {
 }
 
 class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
 
   final _inviteService = InviteService();
@@ -141,12 +141,7 @@ class _FamilyRegisterPageState extends State<FamilyRegisterPage> {
 
           const SizedBox(height: 28),
 
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300)),
-            child: Center(child: Text('K', style: AppTextStyles.heading(fontSize: 28).copyWith(color: _red))),
-          ),
+          Image.asset('assets/branding/kalinga-logo-app.png', width: 56, height: 56),
 
           const SizedBox(height: 20),
 

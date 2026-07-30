@@ -21,7 +21,7 @@ class ProfilePickerPage extends StatefulWidget {
 }
 
 class _ProfilePickerPageState extends State<ProfilePickerPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
 

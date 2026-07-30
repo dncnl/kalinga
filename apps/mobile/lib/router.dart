@@ -17,10 +17,12 @@ import 'pages/activity_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/family_register_page.dart';
+import 'pages/welcome_page.dart';
 
 final router = GoRouter(
-  initialLocation: '/language',
+  initialLocation: '/',
   routes: [
+    GoRoute(path: '/',          builder: (c, s) => const WelcomePage()),
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),
     GoRoute(path: '/patient/edit',
@@ -41,7 +43,8 @@ final router = GoRouter(
         builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
-    GoRoute(path: '/auth',    builder: (c, s) => const AuthPage()),
+    GoRoute(path: '/auth',
+        builder: (c, s) => AuthPage(startInLoginMode: s.uri.queryParameters['mode'] == 'login')),
     GoRoute(path: '/invite/:token',
         builder: (c, s) => FamilyRegisterPage(token: s.pathParameters['token']!)),
   ],

@@ -123,7 +123,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               decoration: InputDecoration(
                 hintText: 'their@email.com',
                 filled: true,
-                fillColor: const Color(0xFFF5F0E8),
+                fillColor: Colors.grey.shade100,
                 contentPadding: const EdgeInsets.all(16),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
               ),
@@ -154,7 +154,7 @@ class _InviteSheetState extends State<_InviteSheet> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFFF5F0E8), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
               child: Text(_link!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
             ),
             const SizedBox(height: 12),

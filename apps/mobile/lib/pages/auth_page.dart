@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 enum _AuthMode { register, login }
 
@@ -10,22 +11,30 @@ enum _AuthMode { register, login }
 /// Optional — reachable from Settings. Uses Firebase Auth email+password
 /// directly from the client; the app runs unauthenticated until then.
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  final bool startInLoginMode;
+
+  const AuthPage({super.key, this.startInLoginMode = false});
 
   @override
   State<AuthPage> createState() => _AuthPageState();
 }
 
 class _AuthPageState extends State<AuthPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
 
-  _AuthMode _mode = _AuthMode.register;
+  late _AuthMode _mode;
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.startInLoginMode ? _AuthMode.login : _AuthMode.register;
+  }
 
   @override
   void dispose() {
@@ -87,21 +96,15 @@ class _AuthPageState extends State<AuthPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
+
+              // ── Back ──────────────────────────────────────────────────
+              const Align(alignment: Alignment.centerLeft, child: AppBackButton()),
+
+              const SizedBox(height: 20),
 
               // ── Logo ──────────────────────────────────────────────────
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Center(
-                  child: Text('K', style: AppTextStyles.heading(fontSize: 28).copyWith(color: _red)),
-                ),
-              ),
+              Image.asset('assets/branding/kalinga-logo-app.png', width: 56, height: 56),
 
               const SizedBox(height: 20),
 

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 class PrototypeCheckinPage extends StatefulWidget {
   final String scheduleId;
@@ -13,7 +14,7 @@ class PrototypeCheckinPage extends StatefulWidget {
 }
 
 class _PrototypeCheckinPageState extends State<PrototypeCheckinPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
 
@@ -256,6 +257,8 @@ class _PrototypeCheckinPageState extends State<PrototypeCheckinPage> {
     final recipient = SelectedProfile.instance.careRecipient;
     return Row(
       children: [
+        const AppBackButton(),
+        const SizedBox(width: 10),
         GestureDetector(
           onTap: () => context.push('/profiles'),
           child: Container(
