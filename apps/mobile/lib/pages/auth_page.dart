@@ -55,23 +55,36 @@ class _AuthPageState extends State<AuthPage> {
     try {
       final auth = FirebaseAuth.instance;
       if (isRegister) {
-        final credential = await auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        final anonymousUser = auth.currentUser;
+        final emailCredential = EmailAuthProvider.credential(email: email, password: password);
+
+        // The language screen is the very first thing anyone sees, before
+        // any sign-in — so by the time a caregiver reaches this screen
+        // she's almost always already anonymous, likely with real logs
+        // already saved under that UID. Link the email/password credential
+        // onto the existing anonymous account instead of creating a new
+        // one: same UID before and after, so the household/data it already
+        // bootstrapped (see main.dart) stays reachable rather than being
+        // orphaned under a UID nobody will ever authenticate as again.
+        final credential = anonymousUser != null && anonymousUser.isAnonymous
+            ? await anonymousUser.linkWithCredential(emailCredential)
+            : await auth.createUserWithEmailAndPassword(email: email, password: password);
         await credential.user?.updateDisplayName(name);
       } else {
         await auth.signInWithEmailAndPassword(email: email, password: password);
       }
-      // The app may have already bootstrapped a household for a different
-      // (anonymous) UID at cold start (see main.dart) — re-run it now for
-      // whichever UID is active after sign-in/register, or every
-      // household-scoped call 403s until the app restarts.
+      // Login (or the no-anonymous-session register fallback above) lands
+      // on a different UID than whatever was active before — re-run
+      // bootstrap for it, or every household-scoped call 403s until the
+      // app restarts. A no-op re-sync when linking kept the same UID.
       await SelectedProfile.instance.initialize();
       if (!mounted) return;
       context.go('/home');
     } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message ?? 'Something went wrong. Try again.');
+      final message = e.code == 'credential-already-in-use' || e.code == 'email-already-in-use'
+          ? 'That email is already registered — try signing in instead.'
+          : e.message ?? 'Something went wrong. Try again.';
+      setState(() => _error = message);
     } catch (_) {
       setState(() => _error = 'Could not reach the server. Check your connection.');
     } finally {

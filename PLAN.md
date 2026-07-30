@@ -25,29 +25,45 @@ app is restarted.
 
 ## Fix
 
-Re-run `SelectedProfile.instance.initialize()` right after `_submit()`'s
-Firebase Auth call succeeds — covers both register and login, since both
-can leave a different UID active than whatever was active a moment before.
+Two parts, in `AuthPage._submit()`:
+
+1. **Register:** if the current user is anonymous (the common case — the
+   language screen is the first thing anyone sees, before any sign-in, so
+   most caregivers reaching this screen are already anonymous, often with
+   real logs already saved under that UID), call `linkWithCredential` with
+   an `EmailAuthProvider` credential instead of `createUserWithEmailAndPassword`.
+   This upgrades the anonymous account in place — same UID before and
+   after — so whatever household/data it already bootstrapped stays
+   reachable instead of being orphaned. Falls back to
+   `createUserWithEmailAndPassword` if there's no anonymous session to
+   link (shouldn't normally happen, but defensive).
+2. **Re-sync regardless:** re-run `SelectedProfile.instance.initialize()`
+   right after the Firebase Auth call succeeds — covers login (always a
+   different UID) and the no-anonymous-session register fallback. A no-op
+   refresh in the common linking case, since the UID didn't change.
+
+Also added a clearer error message for `credential-already-in-use` /
+`email-already-in-use` (linking fails if the email is already registered
+to a different real account) — points the user at signing in instead.
 
 ## Scope decisions (hackathon)
 
-- **Orphaned anonymous households are left alone** — not migrated, not
-  deleted. No real users exist yet, so a household created under an
-  abandoned anonymous UID is inert clutter, not a liability. A cleanup
-  routine adds real risk (could delete the wrong household) for no benefit
-  at this stage; if cleanup is ever wanted, it's a manual one-off, not part
-  of the auth code path.
-- **Data continuity is explicitly out of scope.** This fix stops future
-  403s; it does not preserve whatever a caregiver logged anonymously before
-  registering (that would need `linkWithCredential` to upgrade the
-  anonymous account in place instead of creating a new one — a separate,
-  bigger change not needed for the hackathon).
+- **Orphaned anonymous households are still left alone** — not migrated,
+  not deleted, no cleanup routine. This only matters now for the rarer
+  register-without-linking fallback path; the common path no longer
+  orphans anything.
+- **No merge of two anonymous sessions' data.** If a caregiver somehow
+  registers from a *second* anonymous session after already having a
+  registered account elsewhere, `credential-already-in-use` surfaces as an
+  error rather than attempting any merge — out of scope for the hackathon.
 
 ## Progress
 
 - [x] Re-trigger `SelectedProfile.instance.initialize()` after successful
-      register/login in `auth_page.dart`. `flutter analyze` clean on the
-      changed file. Covers both `_AuthMode.register` and `_AuthMode.login`
-      (single call sits after the if/else, before navigating to `/home`).
+      register/login in `auth_page.dart`.
+- [x] `linkWithCredential` on register when an anonymous session exists,
+      falling back to `createUserWithEmailAndPassword` otherwise. Clearer
+      error message for `credential-already-in-use`/`email-already-in-use`.
+      `flutter analyze` clean on the changed file.
       **Not yet tested live** — no GUI/mic-input automation available here;
       same limitation noted throughout prior features' PLAN.md entries.
