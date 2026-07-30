@@ -5,7 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { isCaregiverAssigned } = require('../lib/authorizeCaregiver');
 const { answerSymptomCheck, LOCALE_NAMES } = require('../rag/answer');
 const { classifyUrgency } = require('../rag/classifyUrgency');
-const { translateToMandarin } = require('../lib/translate');
+const { translateToMandarin, translateToEnglish } = require('../lib/translate');
 
 const router = Router();
 
@@ -53,10 +53,16 @@ router.post(
     try {
       const trimmedMessage = message.trim();
 
-      const [{ answer, sources }, { text: familySummaryZh }] = await Promise.all([
-        answerSymptomCheck({ message: trimmedMessage, locale }),
+      // English translation feeds RAG retrieval (the corpus is
+      // English-only — see answer.js's retrievalQuery note); Mandarin
+      // translation feeds the family/doctor summary. Independent, so run
+      // both up front in parallel.
+      const [{ text: retrievalQuery }, { text: familySummaryZh }] = await Promise.all([
+        translateToEnglish({ text: trimmedMessage, sourceLocale: locale, projectId: firebase.projectId }),
         translateToMandarin({ text: trimmedMessage, sourceLocale: locale, projectId: firebase.projectId }),
       ]);
+
+      const { answer, sources } = await answerSymptomCheck({ message: trimmedMessage, locale, retrievalQuery });
 
       const { urgency } = await classifyUrgency({ message: trimmedMessage, answer });
 

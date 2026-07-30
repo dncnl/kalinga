@@ -19,6 +19,20 @@ const TRANSLATE_LANGUAGE_CODES = {
 };
 
 async function translateToMandarin({ text, sourceLocale, projectId }) {
+  return translateText({ text, sourceLocale, targetLanguageCode: 'zh-TW', projectId });
+}
+
+// RAG retrieval embeds the query and compares it against an English-only
+// chunk corpus — cross-lingual embedding similarity is weak enough that
+// fil/ceb/id/vi queries were empirically retrieving zero chunks even for
+// topically on-point questions (see PLAN.md's live-test notes). Translating
+// to English first before embedding fixes retrieval; the answer itself
+// still gets generated in the caregiver's own language.
+async function translateToEnglish({ text, sourceLocale, projectId }) {
+  return translateText({ text, sourceLocale, targetLanguageCode: 'en', projectId });
+}
+
+async function translateText({ text, sourceLocale, targetLanguageCode, projectId }) {
   const sourceLanguageCode = TRANSLATE_LANGUAGE_CODES[sourceLocale];
   if (!sourceLanguageCode) {
     throw new Error(`No Translation language mapping for locale "${sourceLocale}"`);
@@ -29,10 +43,10 @@ async function translateToMandarin({ text, sourceLocale, projectId }) {
     contents: [text],
     mimeType: 'text/plain',
     sourceLanguageCode,
-    targetLanguageCode: 'zh-TW',
+    targetLanguageCode,
   });
 
   return { text: response.translations?.[0]?.translatedText || '' };
 }
 
-module.exports = { translateToMandarin, TRANSLATE_LANGUAGE_CODES, client };
+module.exports = { translateToMandarin, translateToEnglish, TRANSLATE_LANGUAGE_CODES, client };

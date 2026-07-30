@@ -75,8 +75,13 @@ services (119) right away.`;
 // Same RAG grounding as answerQuestion, but scoped to one care recipient's
 // symptom-check chat: answers directly in the caregiver's own language
 // (see PLAN.md — avoids an extra lossy translation hop) rather than English.
-async function answerSymptomCheck({ message, locale }) {
-  const chunks = await retrieve.retrieveRelevantChunks(message, { topK: 4 });
+// retrievalQuery should be an English translation of `message` — the
+// corpus is English-only and cross-lingual embedding similarity was
+// empirically too weak to retrieve anything for fil/ceb/id/vi queries
+// embedded as-is (see PLAN.md's live-test notes). Falls back to `message`
+// itself if no translation is supplied (e.g. direct unit-test calls).
+async function answerSymptomCheck({ message, locale, retrievalQuery }) {
+  const chunks = await retrieve.retrieveRelevantChunks(retrievalQuery || message, { topK: 4 });
 
   if (chunks.length === 0) {
     return {

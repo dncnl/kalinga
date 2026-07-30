@@ -167,4 +167,36 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
       added an urgency banner (color-coded none/attention/urgent/emergency)
       that explicitly says whether family/doctor were flagged, and shows
       the Mandarin summary when they were.
-- [ ] Live test
+- [x] Live test — full flow run against real Firestore + real OpenRouter
+      LLM/translation calls (auth mocked in-process, same `demo-household`
+      approach as Feature 4's live test). Ran a non-urgent Tagalog message
+      and a clearly emergency one (chest pain + hard to breathe), verified:
+      non-urgent → `flaggedToFamily: false`, no alert doc; emergency →
+      `flaggedToFamily: true`, a real `alerts` doc written with
+      `severity: 'emergency'`/`status: 'active'`; history endpoint lists
+      both, most recent first, `createdAt` correctly serialized as ISO.
+      Notably the urgency classifier correctly called the emergency message
+      `emergency` from the LLM alone — the Tagalog text didn't match any
+      English keyword in the floor list, so this was real model
+      understanding, not the backstop.
+      **Bug found and fixed**: the first live run retrieved **zero RAG
+      chunks** for both Tagalog messages — cross-lingual embedding
+      similarity against the English-only corpus was too weak to clear the
+      0.2 relevance threshold, even for topically on-point queries. Fixed
+      by translating the message to English first
+      (`translate.js`'s new `translateToEnglish`) and embedding *that* for
+      retrieval, while still generating the final answer in the
+      caregiver's own language. Confirmed fixed: re-ran and got 1+ real
+      cited source per message afterward.
+      **Known quality issue, not fixed**: free-tier model output for
+      Tagalog was occasionally garbled in the same way prior features saw
+      for other free-tier calls (Feature 2's transcription, Feature 4's
+      OCR) — one emergency-message response contained a stray Hebrew
+      fragment mid-sentence. The advice itself was still correct and
+      appropriately urgent; this is a known, pre-accepted risk of the
+      free-tier choice (see "Decisions made before starting" above), not
+      something this pass attempts to solve.
+      **Not exercised live**: mobile UI (`ask_page.dart`'s urgency banner,
+      the full scan-photo-equivalent camera-free chat flow) — not run on a
+      device/emulator in this environment, same gap as Feature 4's mobile
+      testing.
