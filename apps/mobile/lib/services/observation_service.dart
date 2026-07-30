@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -22,7 +22,7 @@ class ObservationService {
   /// processObservationJob.js) and updates the observation doc + the chart
   /// (via the existing weeklySummaries Firestore listener) once it's done.
   Future<void> submitVoiceLog(
-    File audioFile, {
+    Uint8List audioBytes, {
     required String householdId,
     required String careRecipientId,
   }) async {
@@ -46,11 +46,10 @@ class ObservationService {
     final observationId = uploadInfo['observationId'] as String;
     final uploadUrl = uploadInfo['uploadUrl'] as String;
 
-    final bytes = await audioFile.readAsBytes();
     final putRes = await http.put(
       Uri.parse(uploadUrl),
       headers: {'Content-Type': contentType},
-      body: bytes,
+      body: audioBytes,
     );
     if (putRes.statusCode != 200) {
       throw Exception('Failed to upload audio: ${putRes.statusCode}');
