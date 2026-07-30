@@ -354,6 +354,10 @@ service cloud.firestore {
               && request.auth.uid in resource.data.get('recipientUids', []));
           allow write: if false;
         }
+        match /symptomChecks/{symptomCheckId} {
+          allow read: if isDemoHousehold(householdId) || canAccessCareRecipient(householdId, careRecipientId);
+          allow write: if false;
+        }
         match /dailySummaries/{dateKey} {
           allow read: if isDemoHousehold(householdId) || canAccessCareRecipient(householdId, careRecipientId);
           allow write: if false;

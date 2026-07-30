@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.0 — 2026-07-30
+
+Additive schema update for Feature 1 (chat-based symptom checker). No
+existing operational collection, document path, or field was removed or
+renamed.
+
+### Added
+
+- `households/{householdId}/careRecipients/{careRecipientId}/symptomChecks/{symptomCheckId}`
+  — one RAG-grounded, urgency-classified, Mandarin-translated symptom-check
+  turn. `clientReadPolicy: authorizedCareTeam`, `clientWritePolicy: serverOnly`.
+- Composite index for `symptomChecks` on `urgency ASC, createdAt DESC`.
+- `_schema/1.2.0` (active) and `migrations/schema-1.1.0-to-1.2.0` (no-op
+  migration, additive only) reference records.
+
+### Compatibility
+
+- All 75 prior document patterns are unchanged; this release adds exactly
+  one new pattern (76 total).
+- Existing fields are unchanged.
+
 ## 1.1.0 — 2026-07-29
 
 Database-package-only update. No operational collection, document path, feature, or field was removed or renamed.

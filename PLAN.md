@@ -119,7 +119,12 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
 
 ## Progress
 
-- [ ] Schema: `symptomChecks` collection + regenerated contracts
+- [x] Schema: `symptomChecks` collection + regenerated contracts. Bumped
+      package/schema version 1.1.0 -> 1.2.0 (76 document patterns), added
+      `_schema/1.2.0` + `migrations/schema-1.1.0-to-1.2.0` reference
+      records, a composite index (`urgency ASC, createdAt DESC`), and a
+      matching `firestore.rules` block (`authorizedCareTeam`, same shape as
+      `dailySummaries`). `npm run validate` passes clean.
 - [ ] Backend urgency classification
 - [ ] Backend symptom-check endpoint (RAG + translate + urgency + alert)
 - [ ] Backend history endpoint

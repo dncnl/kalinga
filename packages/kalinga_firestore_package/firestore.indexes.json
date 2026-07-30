@@ -561,6 +561,20 @@
       ]
     },
     {
+      "collectionGroup": "symptomChecks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "urgency",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "medicationEvents",
       "queryScope": "COLLECTION",
       "fields": [
