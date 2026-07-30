@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -175,8 +176,33 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
 
   // ── Greeting card ──────────────────────────────────────────────────────────
 
+  static const _weekdayNames = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+  static const _monthNames = [
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+  ];
+
+  static String _todayLabel() {
+    final now = DateTime.now();
+    return '${_weekdayNames[now.weekday - 1]}, ${now.day} ${_monthNames[now.month - 1]}';
+  }
+
+  static String _timeOfDayGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
   Widget _buildGreetingCard() {
     final name = SelectedProfile.instance.careRecipient?.displayName ?? 'them';
+    // Auth is optional (see auth_page.dart) — most caregivers never set a
+    // displayName, so this only personalizes the greeting for the ones who
+    // did. Was hardcoded to a placeholder ('Siti') for everyone before.
+    final caregiverName = FirebaseAuth.instance.currentUser?.displayName;
+    final greeting = caregiverName != null && caregiverName.isNotEmpty
+        ? '${_timeOfDayGreeting()}, $caregiverName'
+        : _timeOfDayGreeting();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -203,7 +229,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'SATURDAY, 14 JUNE',
+                _todayLabel(),
                 style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(
                   color: Colors.grey.shade600,
                   letterSpacing: 0.5,
@@ -211,7 +237,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Good morning, Siti',
+                greeting,
                 style: AppTextStyles.heading(fontSize: 26).copyWith(
                   color: Colors.black,
                 ),
