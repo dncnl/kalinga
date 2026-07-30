@@ -58,7 +58,17 @@ the selected profile.
 
 ## Progress
 
-- [ ] Backend household bootstrap + care-recipient CRUD
+- [x] Backend household bootstrap + care-recipient CRUD
+      (`POST /households/bootstrap` — find-or-create, idempotent, verified
+      live: second call returns the same householdId. `POST
+      /households/:householdId/care-recipients` — creates the profile AND
+      an active assignment for the creator in one batch, so a caregiver can
+      immediately log for a profile they just made (confirmed live: called
+      the voice-log upload-url endpoint against a freshly created profile,
+      got a valid signed URL, no manual assignment seeding needed). `GET
+      /households/:householdId/care-recipients` — lists active profiles.
+      16 unit tests, all mocked, all passing, plus the full live chain
+      above.)
 - [ ] Mobile profile state + service
 - [ ] Add-profile screen wired
 - [ ] Profile picker screen

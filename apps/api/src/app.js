@@ -5,6 +5,7 @@ const healthRouter = require('./routes/health');
 const observationsRouter = require('./routes/observations');
 const rollupRouter = require('./routes/rollup');
 const ragRouter = require('./routes/rag');
+const householdsRouter = require('./routes/households');
 
 const app = express();
 
@@ -15,5 +16,6 @@ app.use(healthRouter);
 app.use(observationsRouter);
 app.use(rollupRouter);
 app.use(ragRouter);
+app.use(householdsRouter);
 
 module.exports = app;
