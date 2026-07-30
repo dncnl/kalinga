@@ -1,79 +1,73 @@
-# Feature: Switch default LLM provider to Vertex AI/Gemini
+# Integration: frontend-ui → main + MVP completion
 
-Replaces OpenRouter's free-tier model as the default LLM provider with
-Vertex AI (Gemini), now that the project has active GCP billing ($300
-free-trial credit, hackathon) instead of the billing wall that motivated
-OpenRouter originally. Covers both LLM call sites: `/rag/ask` (via
-`answer.js`) and `extractObservation.js` (structured extraction from
-caregiver voice-log transcripts) — the latter didn't go through the shared
-`llmClient.js` abstraction at all before this change.
+Branch: `integration/frontend-ui`, cut from `origin/main` @ `fb2bdc2`.
+**Fallback point:** `main` @ `fb2bdc2` is known-good and stays untouched, as
+does `origin/frontend-ui` (`62f6b64`). Nothing merges back to `main` until
+the full demo path (§Definition of done below) passes end to end.
 
-## Why
+## Phase 0 findings that shape the plan
 
-`llmClient.js` defaulted to OpenRouter because earlier attempts at Vertex
-AI/Anthropic hit a "no billing set up" dead end (see git history). That's
-no longer true. For a hackathon, deeper native Google Cloud integration is
-also a plus on its own merits, not just a cost question.
+1. **The task prompt's §6 was inverted from reality.** The auth/family/viewer
+   work it attributes to `main` (role picker, `/family-code`,
+   `family_viewer_service`, ViewerPage resolving from its own `:id`) actually
+   lives on `frontend-ui`. `main`'s ViewerPage still reads the caregiver-only
+   `SelectedProfile` singleton. **Decision (confirmed with Ralph):
+   frontend-ui wins on auth/viewer/invite logic**, with one manual port —
+   `main`'s router auth-gate redirect + SelectedProfile-restore logic goes
+   into frontend-ui's router (frontend-ui's router has no auth guard at all).
+2. `frontend-ui` touches **zero** backend files (`apps/api`,
+   `packages/kalinga_firestore_package`) — nothing to discard, and its
+   services already call `main`'s current endpoints.
+3. Only 10 files are modified on both sides; frontend-ui's edits to
+   `main`-reworked pages (`meds_page`, `prototype_home_page`,
+   `prototype_log_page`, `settings_page`, `profile_picker_page`) are
+   cosmetic: bg `#F5F0E8` → white, `AppBackButton`, one border. Resolution:
+   take `main`'s versions, re-apply the cosmetic tweaks.
+4. Verify in Phase 2: invite-code format vs `main`'s post-fork commits
+   `b10bcd9` (join codes + authz) and `b40815c` (human-readable ids).
 
-## SDK note (verified against the live, installed package — not assumed
-from training knowledge, since `@google-cloud/vertexai` was deprecated
-June 2026)
+## Decisions (confirmed)
 
-`@google/genai@2.15.0` is the current correct package — supports both the
-direct Gemini API and the Vertex AI backend from one client. Verified
-directly against `node_modules/@google/genai/dist/genai.d.ts`:
-`new GoogleGenAI({ vertexai: true, project, location, googleAuthOptions })`.
-`googleAuthOptions` accepts the exact same shape as this codebase's
-existing `googleAuthOptions()` helper in `firebase.js` (used for
-Speech/Translate/the RAG bucket's Storage client) — same auth pattern,
-reused, not a new one invented.
+- Uncommitted RAG system-prompt improvement (`answer.js`: answer in the
+  caregiver's language, plain-word style, safety framing) → committed here.
+- F6 fourth hotline: **NIA 0800-024-111** (24/7, multilingual incl.
+  Vietnamese/Indonesian/Thai) alongside 1955 / 119 / 110.
+- Hokkien gap: **minimal caregiver→elder Hokkien phrases inside the F6
+  phrasebook** (eat, medicine, toilet, pain, rest — romanized), not folded
+  into F1, not dropped.
 
-## Design decisions
+## Plan
 
-1. **`generateStructured`, a new function alongside `generateText`** in
-   `llmClient.js` — `answer.js`'s need (text out) and
-   `extractObservation.js`'s need (JSON matching a schema) are different
-   enough shapes to warrant separate functions rather than overloading one.
-   Both dispatch through their own `PROVIDERS`/`STRUCTURED_PROVIDERS` maps,
-   same pattern as before.
-2. **`extractObservation.js` rewritten, not ported.** Its
-   `EXTRACT_TOOL.function.parameters` schema (previously defined but never
-   actually sent to OpenRouter — dead code) is now the real
-   `responseJsonSchema` passed to Gemini's native structured-output mode.
-   Deleted: the 4-model OpenRouter fallback array and markdown-fence-
-   stripping hack, both specific to working around free-tier model
-   flakiness — a non-problem on a single reliable paid model.
-3. **Mocking gotcha found and fixed**: `extractObservation.js` originally
-   destructured `const { generateStructured } = require('./llmClient')`,
-   which captures a reference at import time that `t.mock.method(llmClient,
-   'generateStructured', ...)` can't intercept later. Fixed by importing
-   the whole `llmClient` namespace and calling `llmClient.generateStructured(...)`,
-   matching `answer.js`'s existing (correct) pattern. Applied the same
-   `module.exports.getVertexAIClient()` self-reference trick (already used
-   elsewhere in this codebase, e.g. `uploadNewSources.js`'s PDF extraction)
-   so the Vertex AI client construction itself is mockable too.
-4. **OpenRouter kept as a working fallback** (`LLM_PROVIDER=openrouter`),
-   just no longer the default — cheap insurance for a live hackathon demo.
+- [x] Phase 0 — inventory, no code changes (report delivered in session)
+- [ ] Phase 1 — merge `origin/frontend-ui` into this branch
+  - [ ] both-modified files: main wins, re-apply cosmetic tweaks
+  - [ ] `router.dart` manual port: frontend-ui routes + main's redirect guard
+  - [ ] delete losing duplicates; one route per screen
+  - [ ] app builds and launches on Android
+- [ ] Phase 1b — auth gate (§5b of task prompt): every sign-up / login /
+      token / failure-state line passes on device before feature work
+- [ ] Phase 2 — wire remaining screens to real endpoints, keep wiring table
+      (known mock/static: `prototype_checkin_page` schedules, `help_page`
+      contacts, `activity_page`, `prototype_patient_schedule_page`)
+- [ ] Phase 3 — features
+  - [ ] F0 scoping audit (careRecipientId threaded through every screen)
+  - [ ] F1 structured symptom check-in (tap decision-tree + voice follow-up
+        via existing pipeline, urgency flag + Mandarin summary)
+  - [ ] F2 labeled reminders (reuse tasks/taskEvents pattern)
+  - [ ] F3 reminder-triggered structured check-ins (feed existing rollups)
+  - [ ] F5 "must remember" + insights from existing rollups
+  - [ ] F6 emergency contacts (1955/119/110/0800-024-111) + phrasebook
+        incl. Hokkien caregiver→elder phrases
+  - [ ] F7 med OCR: move vision fallback chain to Vertex AI paid-model
+        pattern (match text-extraction path)
+- [ ] Phase 4 — demo path end-to-end on Android; final report; ask before
+      merging to `main`
 
-## What's done vs. still needed
+## Definition of done
 
-Done: `llmClient.js` (vertexai provider + `generateStructured`),
-`extractObservation.js` rewrite, `.env.example`, both test files rewritten.
-Full suite: 155/155 passing (this also fixed 2 pre-existing
-`extractObservation` test failures that predate this branch — the old
-test file expected a response shape the implementation had already moved
-away from).
-
-**Not done yet, needed before this actually works against real Gemini:**
-- Local ADC (`gcloud auth application-default login`) still isn't
-  configured on this machine — needed to exercise Vertex AI calls locally
-  at all (established earlier this session; same gap that caused RAG
-  bucket auth confusion on the previous branch).
-- Enable `aiplatform.googleapis.com` on `kalinga-bc97f` if not already on,
-  and grant `roles/aiplatform.user` to whichever identity calls it.
-- Live end-to-end test not done in this environment: `POST /rag/ask` with
-  a real question, and `extractObservation` with a real transcript,
-  confirming Gemini actually returns usable answers/structured data (unit
-  tests mock the SDK boundary, so schema/auth-shape correctness is
-  verified, but not "does gemini-2.5-flash actually produce good output
-  for this prompt").
+Demo path: caregiver signup → household bootstrap → 2 recipients → scoped
+screens → voice log reflected in trends → symptom check-in with Mandarin
+summary → Eating reminder fires → structured check-in lands in trends →
+med-label scan schedules reminder → profile shows must-remember + insight →
+emergency tap-to-call → invite code → family member registers → viewer shows
+that recipient's data.
