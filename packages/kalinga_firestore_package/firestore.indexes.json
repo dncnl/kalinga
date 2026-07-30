@@ -1,6 +1,19 @@
 {
   "indexes": [
     {
+      "collectionGroup": "ragChunks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "embedding",
+          "vectorConfig": {
+            "dimension": 384,
+            "flat": {}
+          }
+        }
+      ]
+    },
+    {
       "collectionGroup": "governmentServices",
       "queryScope": "COLLECTION",
       "fields": [
