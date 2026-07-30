@@ -356,6 +356,15 @@ router.post(
     const batch = firebase.db.batch();
     let created = 0;
 
+    // Seeded with the events that already existed (converted to the same
+    // shape GET .../medication-events returns) so the response below can
+    // be the complete up-to-date list -- letting the mobile client fold
+    // generate + list into a single round trip instead of two.
+    const events = existingSnap.docs.map((doc) => {
+      const data = doc.data();
+      return { id: doc.id, ...data, scheduledAt: data.scheduledAt.toDate().toISOString() };
+    });
+
     for (const medDoc of confirmedMedsDocs) {
       const times = medDoc.data().schedule?.times || [];
       for (const time of times) {
@@ -368,7 +377,7 @@ router.post(
         if (existingKeys.has(key)) continue;
 
         const ref = eventsRef.doc();
-        batch.set(ref, {
+        const eventData = {
           medicationId: medDoc.id,
           scheduledAt,
           windowStart: scheduledAt,
@@ -384,13 +393,15 @@ router.post(
           createdBy: req.uid,
           updatedAt: now,
           updatedBy: req.uid,
-        });
+        };
+        batch.set(ref, eventData);
+        events.push({ id: ref.id, ...eventData, scheduledAt: scheduledAt.toISOString() });
         created += 1;
       }
     }
 
     if (created > 0) await batch.commit();
-    res.json({ created });
+    res.json({ created, events });
   },
 );
 

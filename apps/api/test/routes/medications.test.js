@@ -325,12 +325,15 @@ test('POST /medication-events/generate-today only creates events for confirmed m
         where: () => ({
           get: async () => ({
             docs: [
-              { data: () => ({ medicationId: 'med-1', scheduledAt: { toDate: () => new Date(`${new Date().toISOString().slice(0, 10)}T08:00:00.000Z`) } }) },
+              {
+                id: 'evt-existing',
+                data: () => ({ medicationId: 'med-1', scheduledAt: { toDate: () => new Date(`${new Date().toISOString().slice(0, 10)}T08:00:00.000Z`) } }),
+              },
             ],
           }),
         }),
       }),
-      doc: () => ({}),
+      doc: () => ({ id: 'evt-new' }),
     };
   });
   t.mock.method(firebase.db, 'batch', () => ({
@@ -348,6 +351,15 @@ test('POST /medication-events/generate-today only creates events for confirmed m
   assert.equal(created.length, 1);
   assert.equal(created[0].medicationId, 'med-1');
   assert.equal(created[0].status, 'scheduled');
+
+  // The response includes the complete up-to-date event list (existing +
+  // newly created) so the mobile client doesn't need a second GET call.
+  assert.equal(res.body.events.length, 2);
+  assert.ok(res.body.events.some((e) => e.id === 'evt-existing'));
+  const newEvent = res.body.events.find((e) => e.id === 'evt-new');
+  assert.ok(newEvent);
+  assert.equal(newEvent.medicationId, 'med-1');
+  assert.equal(typeof newEvent.scheduledAt, 'string');
 });
 
 test('GET /medication-events lists today\'s events', async (t) => {

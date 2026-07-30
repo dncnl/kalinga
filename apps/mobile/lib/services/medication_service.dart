@@ -221,17 +221,15 @@ class MedicationService {
     }
   }
 
+  /// generate-today's response already includes the complete up-to-date
+  /// event list (existing + any newly created) — one round trip instead
+  /// of generate-then-separately-list.
   Future<List<MedicationEvent>> todaysEvents(String householdId, String careRecipientId) async {
     final token = await getIdToken();
-    await http.post(
+    final res = await http.post(
       Uri.parse(
         '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/medication-events/generate-today',
       ),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    final res = await http.get(
-      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/medication-events'),
       headers: {'Authorization': 'Bearer $token'},
     );
     if (res.statusCode != 200) {
