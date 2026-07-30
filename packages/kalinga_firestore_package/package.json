@@ -1,6 +1,6 @@
 {
   "name": "kalinga-firestore-schema-package",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Import-ready Cloud Firestore schema, reference seed, security rules, indexes, and validation tools for Kalinga.",

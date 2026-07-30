@@ -5,6 +5,7 @@ const { FieldValue } = require('firebase-admin/firestore');
 const firebase = require('../firebase');
 const { requireAuth } = require('../middleware/auth');
 const { canCreateInvites } = require('../lib/authorizeHousehold');
+const { timestampId } = require('../lib/readableId');
 
 const router = Router();
 
@@ -60,7 +61,10 @@ router.post('/households/:householdId/invitations', requireAuth, async (req, res
   const now = new Date();
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
 
-  const invitationRef = firebase.db.collection(`households/${householdId}/invitations`).doc();
+  // Readable id is fine — the invitationId itself is never secret (only the
+  // raw code / its tokenHash are), and it's never exposed to or accepted by
+  // the client directly (inviteTokens/{tokenHash} is the real lookup).
+  const invitationRef = firebase.db.collection(`households/${householdId}/invitations`).doc(`${intendedRole}-${timestampId()}`);
 
   const batch = firebase.db.batch();
   batch.set(invitationRef, {

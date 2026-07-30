@@ -149,6 +149,12 @@ service cloud.firestore {
     match /modelPolicies/{document=**} {
       allow read, write: if false;
     }
+    match /ragSources/{document=**} {
+      allow read, write: if false;
+    }
+    match /ragChunks/{document=**} {
+      allow read, write: if false;
+    }
 
     // Partner organizations.
     match /organizations/{organizationId} {

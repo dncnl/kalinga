@@ -3,10 +3,11 @@ const { Router } = require('express');
 const firebase = require('../firebase');
 const { requireAuth } = require('../middleware/auth');
 const { isCaregiverAssigned } = require('../lib/authorizeCaregiver');
-const { transcribeAudio, STT_LANGUAGE_CODES } = require('../lib/transcribe');
-const { translateToMandarin } = require('../lib/translate');
-const { extractObservation } = require('../lib/extractObservation');
-const { buildObservationDocument } = require('../lib/buildObservationDocument');
+const { STT_LANGUAGE_CODES } = require('../lib/transcribe');
+// Namespace require (not destructured) so tests can mock
+// processObservationJob.processObservationJob directly.
+const processObservationJobLib = require('../lib/processObservationJob');
+const { timestampId } = require('../lib/readableId');
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.post(
 
     const observationId = firebase.db
       .collection(`households/${householdId}/careRecipients/${careRecipientId}/observations`)
-      .doc().id;
+      .doc(timestampId()).id;
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
 
@@ -71,8 +72,14 @@ router.post(
 );
 
 // Caregiver's phone calls this once the raw PUT to the signed URL finishes.
-// Synchronous for now (simplest to build/test); revisit as a Storage-triggered
-// background job if processing time becomes a problem for the UI.
+// Responds as soon as the upload is confirmed valid — the actual pipeline
+// (Speech-to-Text, then translate+extract, then rollup) runs afterward as
+// a background job (see lib/processObservationJob.js) instead of blocking
+// this response, since STT + LLM extraction were taking long enough to
+// make the caregiver wait through the whole thing before seeing "Logged."
+// The observation doc's `status` field tracks progress
+// (processing -> ready, or cancelled + processingError on failure) for
+// anything that wants to reflect that later (e.g. a Firestore listener).
 router.post(
   '/households/:householdId/care-recipients/:careRecipientId/observations/:observationId/process',
   requireAuth,
@@ -111,41 +118,22 @@ router.post(
     const extension = observationSnap.data().audioExtension;
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
 
-    try {
-      const bucketName = firebase.getBucket().name;
-      const gcsUri = `gs://${bucketName}/${storagePath}`;
+    await observationRef.update({ status: 'processing', updatedAt: new Date() });
+    res.json({ observationId, status: 'processing' });
 
-      const { text: transcript } = await transcribeAudio({ gcsUri, locale });
-      if (!transcript.trim()) {
-        return res.status(422).json({
-          error: 'No speech detected in recording',
-          detail: 'Try recording again — speak clearly for at least a couple seconds.',
-        });
-      }
-
-      // Translation and LLM extraction both only need the transcript —
-      // run them in parallel to cut ~2-4s off the response time.
-      const [{ text: translatedText }, extraction] = await Promise.all([
-        translateToMandarin({ text: transcript, sourceLocale: locale, projectId: firebase.projectId }),
-        extractObservation({ transcript }),
-      ]);
-
-      const observationDoc = buildObservationDocument({
-        uid: req.uid,
-        locale,
-        transcript,
-        translatedText,
-        extraction,
-      });
-      observationDoc.originalAudioAssetId = storagePath;
-
-      await observationRef.set(observationDoc);
-
-      res.json({ observationId, transcript, translatedText, ...extraction });
-    } catch (err) {
-      console.error('observation processing failed:', err);
-      res.status(502).json({ error: 'Processing failed', detail: err.message });
-    }
+    processObservationJobLib.processObservationJob({
+      householdId,
+      careRecipientId,
+      observationId,
+      uid: req.uid,
+      locale,
+      storagePath,
+    }).catch((err) => {
+      // processObservationJob already catches its own errors and writes
+      // them to the doc — this is a last-resort net for a bug in that
+      // catch handling itself, so a failure can never be fully silent.
+      console.error(`unhandled error from processObservationJob (${observationRef.path}):`, err);
+    });
   },
 );
 

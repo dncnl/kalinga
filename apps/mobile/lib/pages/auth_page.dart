@@ -1,15 +1,19 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/dev_bypass.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 
 enum _AuthMode { register, login }
 
 /// Screen 03 · Sign in / register (`/auth`).
-/// Optional — reachable from Settings. Uses Firebase Auth email+password
-/// directly from the client; the app runs unauthenticated until then.
+/// Mandatory: this is the app's initial route (see router.dart) and every
+/// other route redirects back here until a real (non-anonymous) account
+/// exists. The "Skip (dev)" button is a debug-build-only escape hatch —
+/// see router.dart's redirect for the enforcement side of this.
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -79,7 +83,11 @@ class _AuthPageState extends State<AuthPage> {
       // app restarts. A no-op re-sync when linking kept the same UID.
       await SelectedProfile.instance.initialize();
       if (!mounted) return;
-      context.go('/home');
+      // Not '/home' directly: a brand-new account still needs onboarding
+      // (/language, /patient). A returning caregiver with an existing
+      // profile gets auto-redirected straight to /home from there anyway
+      // (see router.dart's SelectedProfile-based bypass).
+      context.go('/language');
     } on FirebaseAuthException catch (e) {
       final message = e.code == 'credential-already-in-use' || e.code == 'email-already-in-use'
           ? 'That email is already registered — try signing in instead.'
@@ -92,7 +100,12 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  void _skip() => context.canPop() ? context.pop() : context.go('/home');
+  // Debug-build-only escape hatch (see class doc comment). '/language',
+  // not '/home' — same reasoning as the real-account path in _submit().
+  void _skipDev() {
+    DevBypass.instance.skip();
+    context.go('/language');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +145,7 @@ class _AuthPageState extends State<AuthPage> {
               const SizedBox(height: 8),
               Text(
                 isRegister
-                    ? 'Only needed to link the family. Two fields\nand a password.'
+                    ? 'Create an account to start using Kalinga.\nTwo fields and a password.'
                     : 'Sign in to keep sending your logs to the\nfamily you already invited.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600, height: 1.5),
@@ -227,21 +240,29 @@ class _AuthPageState extends State<AuthPage> {
 
               const SizedBox(height: 16),
 
-              GestureDetector(
-                onTap: _submitting ? null : _skip,
-                child: Text(
-                  'Skip for now',
-                  style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87),
+              if (kDebugMode) ...[
+                GestureDetector(
+                  onTap: _submitting ? null : _skipDev,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      border: Border.all(color: Colors.orange.shade300),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Skip (dev)',
+                      style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.orange.shade800),
+                    ),
+                  ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              Text(
-                'You can use Kalinga without an account. Sign in only\nwhen you want the family to read your logs.',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500, height: 1.5),
-              ),
+                const SizedBox(height: 16),
+                Text(
+                  'Debug build only — real builds require an account.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.orange.shade700),
+                ),
+              ],
 
               const SizedBox(height: 24),
             ],

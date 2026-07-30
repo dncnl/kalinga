@@ -3,6 +3,7 @@ const { Router } = require('express');
 const firebase = require('../firebase');
 const { requireAuth } = require('../middleware/auth');
 const { isHouseholdMember } = require('../lib/authorizeHousehold');
+const { slugId } = require('../lib/readableId');
 
 const router = Router();
 
@@ -22,7 +23,12 @@ router.post('/households/bootstrap', requireAuth, async (req, res) => {
     return res.json({ householdId: membershipSnap.data().activeHouseholdId });
   }
 
-  const householdRef = firebase.db.collection('households').doc();
+  // Every new household starts with the same placeholder name (see the
+  // comment above), so this doesn't distinguish much on its own yet — but
+  // it's still readable/browsable in the console, and stays meaningful
+  // once someone renames the household via Settings (the id itself won't
+  // retroactively change, same as everywhere else this pattern is used).
+  const householdRef = firebase.db.collection('households').doc(slugId("Caregiver's household"));
   const now = new Date();
 
   const batch = firebase.db.batch();
@@ -122,7 +128,7 @@ router.post('/households/:householdId/care-recipients', requireAuth, async (req,
   const now = new Date();
   const recipientRef = firebase.db
     .collection(`households/${householdId}/careRecipients`)
-    .doc();
+    .doc(slugId(displayName));
 
   const batch = firebase.db.batch();
   batch.set(recipientRef, {

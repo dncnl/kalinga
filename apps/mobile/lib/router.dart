@@ -1,6 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/widgets.dart' show Listenable;
 import 'package:go_router/go_router.dart';
 
 import 'services/profile_service.dart';
+import 'state/dev_bypass.dart';
 import 'state/selected_profile.dart';
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
@@ -20,14 +23,24 @@ import 'pages/auth_page.dart';
 import 'pages/family_register_page.dart';
 
 final router = GoRouter(
-  initialLocation: '/language',
+  initialLocation: '/auth',
   // SelectedProfile.initialize() (fired unawaited in main.dart) restores an
   // already-onboarded caregiver's household/profile from the server. Once
   // that resolves and finds an existing profile, skip the onboarding
   // flow (/language, /patient) straight to /home instead of making a
   // returning caregiver click through it again every launch.
-  refreshListenable: SelectedProfile.instance,
+  refreshListenable: Listenable.merge([SelectedProfile.instance, DevBypass.instance]),
   redirect: (context, state) {
+    // A real (non-anonymous) account is required to use the app —
+    // AuthPage's dev-only "Skip (dev)" button is the only way past this
+    // outside of actually registering/signing in. /invite/:token is its
+    // own self-contained account-creation flow for family members
+    // (family_register_page.dart), so it's exempt from this gate too.
+    final onAuthGate = state.matchedLocation == '/auth' || state.matchedLocation.startsWith('/invite/');
+    final user = FirebaseAuth.instance.currentUser;
+    final hasRealAccount = user != null && !user.isAnonymous;
+    if (!hasRealAccount && !DevBypass.instance.skipped && !onAuthGate) return '/auth';
+
     final profile = SelectedProfile.instance;
     if (!profile.hasProfile) return null;
 

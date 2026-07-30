@@ -1,15 +1,19 @@
-import 'dart:io';
+import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../state/selected_profile.dart';
 import '../services/observation_service.dart';
 import '../theme.dart';
+import '../wav.dart';
 import '../week_key.dart';
+
+const _sampleRate = 16000;
+const _numChannels = 1;
 
 class PrototypeLogPage extends StatefulWidget {
   const PrototypeLogPage({super.key});
@@ -27,9 +31,12 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   final _recorder = AudioRecorder();
   final _observationService = const ObservationService();
+  final _pcmChunks = BytesBuilder();
+  StreamSubscription<Uint8List>? _pcmSubscription;
 
   @override
   void dispose() {
+    _pcmSubscription?.cancel();
     _recorder.dispose();
     super.dispose();
   }
@@ -37,26 +44,37 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   Future<void> _startRecording() async {
     if (!await _recorder.hasPermission()) return;
 
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.wav';
+    _pcmChunks.clear();
 
-    // WAV/LINEAR16, not AAC: Google Cloud Speech-to-Text (apps/api) doesn't
-    // support AAC/M4A at all. Sample rate must match transcribe.js's
-    // sampleRateHertz.
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
-      path: path,
+    // Raw PCM streaming (not start()+a file path) so this works on every
+    // platform, including web — record's path-based mode needs a real
+    // filesystem (via path_provider), which web doesn't have; a temp-file
+    // path there throws immediately. The container-less PCM chunks get
+    // wrapped into a proper .wav (see wav.dart) once recording stops and
+    // the total length is known.
+    //
+    // pcm16bits, not wav/AAC: Google Cloud Speech-to-Text (apps/api)
+    // doesn't support AAC/M4A at all, and streaming can't emit a WAV
+    // container mid-recording anyway (its header needs the final byte
+    // count). Sample rate must match transcribe.js's sampleRateHertz.
+    final stream = await _recorder.startStream(
+      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: _sampleRate, numChannels: _numChannels),
     );
+    _pcmSubscription = stream.listen(_pcmChunks.add);
     setState(() => _isHolding = true);
   }
 
   Future<void> _stopRecordingAndSubmit() async {
-    final path = await _recorder.stop();
+    await _recorder.stop();
+    await _pcmSubscription?.cancel();
+    _pcmSubscription = null;
+
+    final pcmData = _pcmChunks.takeBytes();
     setState(() {
       _isHolding = false;
-      _isProcessing = path != null;
+      _isProcessing = pcmData.isNotEmpty;
     });
-    if (path == null) return;
+    if (pcmData.isEmpty) return;
 
     final profile = SelectedProfile.instance;
     final householdId = profile.householdId;
@@ -71,15 +89,20 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     }
 
     try {
-      final result = await _observationService.submitVoiceLog(
-        File(path),
+      final wavBytes = wrapPcmAsWav(pcmData, sampleRate: _sampleRate, numChannels: _numChannels);
+      // Returns as soon as processing has started server-side, not once
+      // it finishes (see observation_service.dart) — no category summary
+      // to show yet, just confirm the recording was received. The chart
+      // below updates on its own via the weeklySummaries listener once
+      // the background job's rollup completes.
+      await _observationService.submitVoiceLog(
+        wavBytes,
         householdId: householdId,
         careRecipientId: careRecipientId,
       );
       if (!mounted) return;
-      final categories = (result['categories'] as List?)?.join(', ') ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logged: $categories')),
+        const SnackBar(content: Text('Logged — processing...')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -93,6 +116,9 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   Future<void> _cancelRecording() async {
     await _recorder.cancel();
+    await _pcmSubscription?.cancel();
+    _pcmSubscription = null;
+    _pcmChunks.clear();
     setState(() => _isHolding = false);
   }
 
