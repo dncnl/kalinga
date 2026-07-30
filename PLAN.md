@@ -192,3 +192,112 @@ caregiver and family can see.
       (`viewer_page.dart` — same `StreamBuilder` pattern, same neutral
       fallback. `viewerId` still isn't wired to a real household/recipient
       lookup — same hardcoded IDs as the log screen.)
+
+---
+
+# Backend: RAG Component (anti-hallucination grounding)
+
+Not part of the voice-log feature above — a general-purpose backend
+capability so any future LLM-facing feature (starting with the chat-based
+symptom checker in `CLAUDE.md`'s MVP list, but not built yet) can ground
+answers in real sources instead of the model free-associating from training
+data.
+
+## What it is
+
+`apps/api/src/rag/` — retrieval-augmented generation: chunk documents →
+embed → store → on a question, retrieve the most relevant chunks → force
+the LLM to answer only from those chunks, with citations, and to say "I
+don't know" rather than guess when nothing relevant is found.
+
+## Document sources (`src/rag/sources/`)
+
+4 real, cited public sources — not fabricated placeholder text. Fetched live
+via web search/fetch on 2026-07-30:
+- Taiwan MOHW — Department of Long-Term Care overview
+  (mohw.gov.tw/cp-3779-44499-2.html)
+- "Policies and Transformation of Long-Term Care System in Taiwan" — peer-
+  reviewed paper, PMC (pmc.ncbi.nlm.nih.gov/articles/PMC7533198/)
+- WHO ICOPE (Integrated Care for Older People) framework overview
+  (who.int)
+- NCBI Bookshelf — "Medication Management of the Community-Dwelling Older
+  Adult" (ncbi.nlm.nih.gov/books/NBK2670/)
+
+To add more: drop a new file in `src/rag/sources/` in the same shape
+(`{ id, title, publisher, url, retrievedAt, category, text }`), list it in
+`sources/index.js`, re-run `node src/rag/ingest.js`. A CDC page (medication
+safety) 403'd on fetch and isn't included — worth another attempt later.
+
+## Storage & retrieval
+
+- Firestore, top-level `ragChunks` collection (shared reference knowledge,
+  not household data — doesn't belong under the `households/{id}/...` tree
+  the care-record schema uses).
+- Embeddings: **local**, via `@xenova/transformers`
+  (`Xenova/all-MiniLM-L6-v2`, runs on CPU, ~90MB model downloaded on first
+  use, cached after). Deliberately not a hosted embeddings API — every
+  paid/quota-limited option hit earlier in this project (Anthropic, Gemini)
+  was a dead end without billing. Zero cost, zero external dependency for
+  this step.
+- Retrieval: cosine similarity, in-memory over the whole corpus (fine at
+  this scale — a handful of documents). `MIN_RELEVANCE_SCORE = 0.2`,
+  calibrated empirically: real relevant queries scored 0.53-0.69 cosine
+  similarity against the actual corpus; a fully unrelated query ("what is
+  the capital of France?") scored negative across every chunk. Below 0.2 a
+  chunk is discarded rather than surfaced — without this, off-topic
+  questions still returned 4 irrelevant "sources" even when the LLM
+  correctly declined to answer from them.
+
+## The LLM "placeholder" (`src/lib/llmClient.js`)
+
+This is the swappable piece you asked for — which model answers is a
+`LLM_PROVIDER`/`LLM_MODEL` env var, not a code change at call sites.
+`LLM_PROVIDER=openrouter` (default, `openai/gpt-oss-20b:free`) is the only
+one actually implemented — `anthropic` and `openai` are stubbed with clear
+"not implemented, needs billing" errors so filling them in later is
+mechanical, not a redesign.
+
+## Anti-hallucination behavior (`src/rag/answer.js`)
+
+System prompt forces: answer ONLY from the numbered sources given, cite
+inline like `[1]`, say so plainly if the sources don't cover it, flag
+possible emergencies and recommend a doctor/119 rather than advise on them.
+Verified live: a relevant question about Taiwan LTC 2.0 coverage got a
+correct, cited answer pulling the right two chunks (17 service types, 26%
+foreign domestic worker reliance — matching the real source numbers
+exactly); an unrelated question ("capital of France?") correctly returned
+"I don't have any information on that yet." with zero sources, not a
+hallucinated guess.
+
+## API
+
+`POST /rag/ask` — `requireAuth` only (no household/assignment check; this
+is shared knowledge, not care-record data, so any authed user can query
+it). Body `{ question }` → `{ answer, sources: [{ n, title, publisher,
+url, excerpt }] }`.
+
+## Testing
+
+24 unit tests (chunk, cosine similarity + threshold filtering, answer
+grounding/refusal, LLM client provider switching + error paths, route auth/
+validation), all passing, all mocked. Live-tested end to end against real
+Firebase + real embeddings + real OpenRouter: ingest (4 sources → 10
+chunks), a grounded question (correct cited answer), and an off-topic
+question (correct refusal, no irrelevant citations).
+
+## Known gaps / open questions
+
+- No UI — user explicitly said this isn't needed yet; it's a backend
+  capability waiting for a consumer (symptom checker feature, most likely).
+- No scheduler/webhook re-runs ingest automatically — manual
+  `node src/rag/ingest.js` after editing `sources/`.
+- Corpus is small (4 documents) and hand-picked by web search, not a
+  systematic literature review — fine as a proof of concept, not a
+  substitute for actual clinical/legal review of what a caregiving app
+  tells migrant workers before this goes near real users.
+- CDC medication-safety page 403'd on fetch; only 3 of the 4 planned
+  source types got a document (Taiwan authority, international guideline,
+  research paper) — worth revisiting for more CDC/HPA-specific coverage.
+- `OpenRouter`'s free-tier model hit a transient shared-pool rate limit
+  during live testing (retried successfully 24s later) — same shared-pool
+  risk already flagged for the voice-log extraction step.
