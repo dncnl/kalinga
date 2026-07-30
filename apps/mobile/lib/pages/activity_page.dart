@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../state/selected_profile.dart';
 import '../theme.dart';
 
 enum _ActivityStatus { resolved, urgent, logged, watch }
@@ -46,7 +47,7 @@ class _ActivityPageState extends State<ActivityPage> {
             const SizedBox(height: 16),
             _buildHeader(context),
             const SizedBox(height: 28),
-            Text("Lola Rosa's history", style: AppTextStyles.heading(fontSize: 28).copyWith(color: Colors.black)),
+            Text("${SelectedProfile.instance.careRecipient?.displayName ?? 'Their'}'s history", style: AppTextStyles.heading(fontSize: 28).copyWith(color: Colors.black)),
             const SizedBox(height: 8),
             Text('Everything you logged, and what the family saw.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600, height: 1.5)),
@@ -85,20 +86,28 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
       GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38,
           decoration: const BoxDecoration(color: Color(0xFF2BBFB3), shape: BoxShape.circle),
-          child: Center(child: Text('LR', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
+          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
       ),
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Lola Rosa', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            Text('82 · speaks Hokkien', style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500)),
+            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            if (recipient != null)
+              Text(
+                [
+                  if (recipient.age != null) '${recipient.age}',
+                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
+                ].join(' · '),
+                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+              ),
           ]),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),
