@@ -14,6 +14,7 @@ function mockAuthedUser(t, uid) {
 function mockAssignment(t, data) {
   t.mock.method(firebase.db, 'doc', () => ({
     get: async () => ({ exists: data !== null, data: () => data }),
+    set: async () => {},
   }));
 }
 
@@ -187,16 +188,19 @@ function mockVisionSuccess(t, draftOverrides = {}) {
   }));
 }
 
-test('POST /medications/:id/process rejects a missing storagePath', async (t) => {
+test('POST /medications/:id/process 404s when no upload was recorded', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
-  mockAssignment(t, { status: 'active' });
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
+    return { get: async () => ({ exists: false }) };
+  });
 
   const res = await request(app)
     .post(`${BASE}/medications/med-1/process`)
     .set('Authorization', 'Bearer token')
     .send({});
 
-  assert.equal(res.status, 400);
+  assert.equal(res.status, 404);
 });
 
 test('POST /medications/:id/process saves an unverified labelOcrDraft', async (t) => {
@@ -206,13 +210,16 @@ test('POST /medications/:id/process saves an unverified labelOcrDraft', async (t
   let saved;
   t.mock.method(firebase.db, 'doc', (path) => {
     if (path.includes('/assignments/')) return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
-    return { set: async (data) => { saved = data; } };
+    return {
+      get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', photoExtension: 'jpg' }) }),
+      set: async (data) => { saved = data; },
+    };
   });
 
   const res = await request(app)
     .post(`${BASE}/medications/med-1/process`)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'households/h1/careRecipients/r1/medications/med-1/label.jpg' });
+    .send({});
 
   assert.equal(res.status, 200);
   assert.equal(res.body.medicationId, 'med-1');
@@ -224,11 +231,18 @@ test('POST /medications/:id/process saves an unverified labelOcrDraft', async (t
   assert.equal(saved.name, 'Metformin');
   assert.deepEqual(saved.schedule.times, ['08:00', '20:00']);
   assert.equal(saved.ocrDraft.confidence, 'high');
+  assert.equal(
+    saved.sourceDocumentAssetId,
+    'households/h1/careRecipients/r1/medications/med-1/label.jpg',
+  );
 });
 
 test('POST /medications/:id/process returns 502 when every vision model fails', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
-  t.mock.method(firebase.db, 'doc', () => ({ get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) }));
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
+    return { get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', photoExtension: 'jpg' }) }) };
+  });
   t.mock.method(firebase, 'getBucket', () => ({
     file: () => ({ getSignedUrl: async () => ['https://signed.example.com/read'] }),
   }));
@@ -237,7 +251,7 @@ test('POST /medications/:id/process returns 502 when every vision model fails', 
   const res = await request(app)
     .post(`${BASE}/medications/med-1/process`)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'p' });
+    .send({});
 
   assert.equal(res.status, 502);
 });

@@ -39,7 +39,6 @@ class ObservationService {
     final uploadInfo = jsonDecode(uploadUrlRes.body) as Map<String, dynamic>;
     final observationId = uploadInfo['observationId'] as String;
     final uploadUrl = uploadInfo['uploadUrl'] as String;
-    final storagePath = uploadInfo['storagePath'] as String;
 
     final bytes = await audioFile.readAsBytes();
     final putRes = await http.put(
@@ -59,7 +58,7 @@ class ObservationService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'storagePath': storagePath, 'locale': demoLocale}),
+      body: jsonEncode({'locale': demoLocale}),
     );
     if (processRes.statusCode != 200) {
       throw Exception('Failed to process observation: ${processRes.body}');

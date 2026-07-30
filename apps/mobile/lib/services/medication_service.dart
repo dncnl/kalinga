@@ -161,7 +161,6 @@ class MedicationService {
     final uploadInfo = jsonDecode(uploadUrlRes.body) as Map<String, dynamic>;
     final medicationId = uploadInfo['medicationId'] as String;
     final uploadUrl = uploadInfo['uploadUrl'] as String;
-    final storagePath = uploadInfo['storagePath'] as String;
 
     final bytes = await photoFile.readAsBytes();
     final putRes = await http.put(
@@ -178,7 +177,7 @@ class MedicationService {
         '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/medications/$medicationId/process',
       ),
       headers: _headers(token),
-      body: jsonEncode({'storagePath': storagePath}),
+      body: jsonEncode({}),
     );
     if (processRes.statusCode != 200) {
       throw Exception('Failed to scan label: ${processRes.body}');

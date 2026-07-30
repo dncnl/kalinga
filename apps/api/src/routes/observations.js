@@ -53,6 +53,13 @@ router.post(
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
 
+    // Recorded so /process can rebuild storagePath itself instead of
+    // trusting whatever path the client sends it — otherwise a caller could
+    // point processing at an arbitrary object in the bucket.
+    await firebase.db
+      .doc(`households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`)
+      .set({ status: 'pendingUpload', audioExtension: extension, createdAt: new Date() });
+
     const expiresAt = Date.now() + UPLOAD_URL_TTL_MS;
     const [uploadUrl] = await firebase
       .getBucket()
@@ -71,10 +78,10 @@ router.post(
   requireAuth,
   async (req, res) => {
     const { householdId, careRecipientId, observationId } = req.params;
-    const { storagePath, locale } = req.body || {};
+    const { locale } = req.body || {};
 
-    if (!storagePath || !locale) {
-      return res.status(400).json({ error: 'storagePath and locale are required' });
+    if (!locale) {
+      return res.status(400).json({ error: 'locale is required' });
     }
     if (!STT_LANGUAGE_CODES[locale]) {
       return res.status(400).json({
@@ -90,6 +97,19 @@ router.post(
     if (!assigned) {
       return res.status(403).json({ error: 'Not an active caregiver for this care recipient' });
     }
+
+    // storagePath is rebuilt server-side from the extension recorded at
+    // upload-url time — never trust a client-supplied path, since that would
+    // let a caller point transcription at an arbitrary object in the bucket.
+    const observationRef = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`,
+    );
+    const observationSnap = await observationRef.get();
+    if (!observationSnap.exists || observationSnap.data().status !== 'pendingUpload') {
+      return res.status(404).json({ error: 'No upload found for this observation' });
+    }
+    const extension = observationSnap.data().audioExtension;
+    const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
 
     try {
       const bucketName = firebase.getBucket().name;
@@ -119,9 +139,7 @@ router.post(
       });
       observationDoc.originalAudioAssetId = storagePath;
 
-      await firebase.db
-        .doc(`households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`)
-        .set(observationDoc);
+      await observationRef.set(observationDoc);
 
       res.json({ observationId, transcript, translatedText, ...extraction });
     } catch (err) {

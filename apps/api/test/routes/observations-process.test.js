@@ -13,11 +13,19 @@ function mockAuthedUser(t, uid) {
   t.mock.method(firebase.auth, 'verifyIdToken', async () => ({ uid }));
 }
 
+// Doubles as the assignment check (isCaregiverAssigned) and the observation
+// placeholder lookup /process now does instead of trusting a client-supplied
+// storagePath — differentiate by path since both hit firebase.db.doc().
 function mockAssignment(t, data) {
-  t.mock.method(firebase.db, 'doc', () => ({
-    get: async () => ({ exists: data !== null, data: () => data }),
-    set: async () => {},
-  }));
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) {
+      return { get: async () => ({ exists: data !== null, data: () => data }) };
+    }
+    return {
+      get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }),
+      set: async () => {},
+    };
+  });
 }
 
 function mockPipelineSuccess(t) {
@@ -56,11 +64,11 @@ function mockPipelineSuccess(t) {
 test('rejects requests with no auth token', async () => {
   const res = await request(app)
     .post(ROUTE)
-    .send({ storagePath: 'p', locale: 'fil' });
+    .send({ locale: 'fil' });
   assert.equal(res.status, 401);
 });
 
-test('rejects a missing storagePath/locale', async (t) => {
+test('rejects a missing locale', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
 
   const res = await request(app).post(ROUTE).set('Authorization', 'Bearer token').send({});
@@ -73,7 +81,7 @@ test('rejects an unsupported locale (ceb)', async (t) => {
   const res = await request(app)
     .post(ROUTE)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'p', locale: 'ceb' });
+    .send({ locale: 'ceb' });
 
   assert.equal(res.status, 400);
 });
@@ -85,28 +93,49 @@ test('rejects a caregiver with no active assignment', async (t) => {
   const res = await request(app)
     .post(ROUTE)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'p', locale: 'fil' });
+    .send({ locale: 'fil' });
 
   assert.equal(res.status, 403);
 });
 
-test('runs the full pipeline and saves the observation for an assigned caregiver', async (t) => {
+test('404s when no upload was recorded for this observation', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
-  mockAssignment(t, { status: 'active' });
-  mockPipelineSuccess(t);
-
-  let savedDoc;
-  t.mock.method(firebase.db, 'doc', () => ({
-    get: async () => ({ exists: true, data: () => ({ status: 'active' }) }),
-    set: async (doc) => {
-      savedDoc = doc;
-    },
-  }));
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) {
+      return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
+    }
+    return { get: async () => ({ exists: false }) };
+  });
 
   const res = await request(app)
     .post(ROUTE)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'households/h1/careRecipients/r1/observations/obs-1/audio.m4a', locale: 'fil' });
+    .send({ locale: 'fil' });
+
+  assert.equal(res.status, 404);
+});
+
+test('runs the full pipeline and saves the observation for an assigned caregiver', async (t) => {
+  mockAuthedUser(t, 'caregiver-1');
+  mockPipelineSuccess(t);
+
+  let savedDoc;
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) {
+      return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
+    }
+    return {
+      get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }),
+      set: async (doc) => {
+        savedDoc = doc;
+      },
+    };
+  });
+
+  const res = await request(app)
+    .post(ROUTE)
+    .set('Authorization', 'Bearer token')
+    .send({ locale: 'fil' });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.transcript, 'Natulog siya nang mahusay.');
@@ -137,7 +166,7 @@ test('returns 422 when no speech is detected, without calling translate/extract'
   const res = await request(app)
     .post(ROUTE)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'p', locale: 'fil' });
+    .send({ locale: 'fil' });
 
   assert.equal(res.status, 422);
   assert.equal(res.body.error, 'No speech detected in recording');
@@ -146,9 +175,12 @@ test('returns 422 when no speech is detected, without calling translate/extract'
 
 test('returns 502 when the pipeline throws', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
-  t.mock.method(firebase.db, 'doc', () => ({
-    get: async () => ({ exists: true, data: () => ({ status: 'active' }) }),
-  }));
+  t.mock.method(firebase.db, 'doc', (path) => {
+    if (path.includes('/assignments/')) {
+      return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
+    }
+    return { get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', audioExtension: 'm4a' }) }) };
+  });
   t.mock.method(firebase, 'getBucket', () => ({ name: 'bucket' }));
   t.mock.method(speechClient, 'recognize', async () => {
     throw new Error('STT quota exceeded');
@@ -157,7 +189,7 @@ test('returns 502 when the pipeline throws', async (t) => {
   const res = await request(app)
     .post(ROUTE)
     .set('Authorization', 'Bearer token')
-    .send({ storagePath: 'p', locale: 'fil' });
+    .send({ locale: 'fil' });
 
   assert.equal(res.status, 502);
   assert.match(res.body.detail, /STT quota exceeded/);
