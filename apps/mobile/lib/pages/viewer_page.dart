@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../services/profile_service.dart';
+import '../state/session_role.dart';
 import '../theme.dart';
 import '../week_key.dart';
 
@@ -34,11 +37,30 @@ class _ViewerPageState extends State<ViewerPage> {
 
   final _profileService = const ProfileService();
   late final Future<_ViewerData> _dataFuture;
+  bool _signingOut = false;
 
   @override
   void initState() {
     super.initState();
     _dataFuture = _resolve();
+  }
+
+  // Family members have no other screen with a sign-out — the viewer is
+  // their entire surface (see the footer-action comment below).
+  Future<void> _signOut() async {
+    setState(() => _signingOut = true);
+    try {
+      await SessionRole.instance.clear();
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.go('/');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _signingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('無法登出，請再試一次 · Could not sign out. Try again.')),
+      );
+    }
   }
 
   Future<_ViewerData> _resolve() async {
@@ -145,34 +167,11 @@ class _ViewerPageState extends State<ViewerPage> {
 
         const SizedBox(height: 20),
 
-        // ── Alert card ──────────────────────────────────────────────
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF3C4),
-            border: Border.all(color: _amber, width: 1.5),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(color: _amber, shape: BoxShape.circle),
-              child: const Icon(Icons.remove_red_eye_outlined, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('睡眠時間下降', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
-              const SizedBox(height: 4),
-              Text('三天平均少一小時。照顧者已回報膝蓋疼痛。',
-                  style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade700, height: 1.5)),
-            ])),
-          ]),
-        ),
-
-        const SizedBox(height: 24),
+        // No alert/insight card yet: the one that used to sit here was
+        // hardcoded fixture text ("sleep declining… caregiver reported knee
+        // pain") — fabricated medical claims on the family surface, exactly
+        // what the "never alarm without cause" constraint forbids. F5 will
+        // reintroduce it fed by real rollup data.
 
         // ── Charts ──────────────────────────────────────────────────
         StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -204,21 +203,42 @@ class _ViewerPageState extends State<ViewerPage> {
 
         const SizedBox(height: 32),
 
-        // ── Back button ─────────────────────────────────────────────
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, size: 18),
-            label: Text('Back to caregiver app', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.black87,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Colors.black87, width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        // ── Footer action ───────────────────────────────────────────
+        // Two different users land here: the caregiver previewing "what
+        // family sees" (wants a way back into her app) and a real family
+        // member (this IS their whole app — "back to caregiver app" would
+        // be meaningless, and they need sign-out since no Settings screen
+        // is reachable from here).
+        if (SessionRole.instance.isFamily)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _signingOut ? null : _signOut,
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: Text('登出 · Sign out', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: Text('Back to caregiver app', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: const BorderSide(color: Colors.black87, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 24),
       ]),
     );

@@ -33,10 +33,20 @@ Future<void> main() async {
   // recipients via FamilyViewerService instead (see WelcomePage).
   await SessionRole.instance.load();
 
+  // Only bootstrap for an already-signed-in caregiver. Firing this
+  // unconditionally meant a fresh install hit POST /households/bootstrap
+  // before anyone had signed in — and since auth_token.dart falls back to
+  // signInAnonymously(), every first launch silently created a throwaway
+  // anonymous account plus a junk "Caregiver's household" in Firestore.
+  // The caregiver register/login paths call initialize() themselves once a
+  // real account exists (see auth_page.dart), so nothing is lost here.
+  final user = FirebaseAuth.instance.currentUser;
+  final hasRealAccount = user != null && !user.isAnonymous;
+
   // Fire-and-forget: app launches immediately, screens that depend on the
   // selected profile listen to SelectedProfile.instance and react once
   // this resolves rather than blocking startup on a network round trip.
-  if (!SessionRole.instance.isFamily) {
+  if (hasRealAccount && !SessionRole.instance.isFamily) {
     unawaited(SelectedProfile.instance.initialize());
   }
 

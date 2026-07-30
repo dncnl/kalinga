@@ -39,13 +39,25 @@ the full demo path (§Definition of done below) passes end to end.
 ## Plan
 
 - [x] Phase 0 — inventory, no code changes (report delivered in session)
-- [ ] Phase 1 — merge `origin/frontend-ui` into this branch
-  - [ ] both-modified files: main wins, re-apply cosmetic tweaks
-  - [ ] `router.dart` manual port: frontend-ui routes + main's redirect guard
-  - [ ] delete losing duplicates; one route per screen
-  - [ ] app builds and launches on Android
-- [ ] Phase 1b — auth gate (§5b of task prompt): every sign-up / login /
-      token / failure-state line passes on device before feature work
+- [x] Phase 1 — merged `origin/frontend-ui` (commit `fad1c59`)
+  - [x] both-modified files: main wins, cosmetic tweaks re-applied
+  - [x] `router.dart` manual port: frontend-ui routes + main's redirect guard
+  - [x] no duplicate screens (frontend-ui only added new pages)
+  - [x] builds and runs on Android emulator (API 37)
+- [x] Phase 1b — auth gate (§5b) **all lines pass on device**, verified by
+      driving the emulator and screenshotting each state:
+  - [x] caregiver sign-up → `/language` → `/patient` → `/home`, scoped to
+        the created recipient; household bootstraps once
+  - [x] caregiver restart → straight to `/home`, session persists
+  - [x] invite code minted (`GT5Z7DM5`), family code validated, family
+        registered → viewer showing **that** recipient
+  - [x] family restart → "Opening your family view…" → correct viewer
+  - [x] family login (role fork) → correct viewer
+  - [x] sign-out (caregiver, Settings) clears state → welcome
+  - [x] failure states: invalid code, wrong password, no network — all
+        inline and plain-language
+  - Bugs found and fixed during this gate: see commits `3ca3470`, and the
+    fix-list commit below.
 - [ ] Phase 2 — wire remaining screens to real endpoints, keep wiring table
       (known mock/static: `prototype_checkin_page` schedules, `help_page`
       contacts, `activity_page`, `prototype_patient_schedule_page`)

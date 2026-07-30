@@ -139,7 +139,7 @@ class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
 
               // ── Footer ────────────────────────────────────────────────
               Text(
-                'No account needed. You can change this later in Settings.',
+                'You can change this later in Settings.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 12).copyWith(
                   color: Colors.grey.shade500,

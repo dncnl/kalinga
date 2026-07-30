@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -119,9 +121,26 @@ class _AuthPageState extends State<AuthPage> {
       // (see router.dart's SelectedProfile-based bypass).
       context.go('/language');
     } on FirebaseAuthException catch (e) {
-      final message = e.code == 'credential-already-in-use' || e.code == 'email-already-in-use'
-          ? 'That email is already registered — try signing in instead.'
-          : e.message ?? 'Something went wrong. Try again.';
+      // Plain words only — Firebase's default messages are jargon
+      // ("The supplied auth credential is incorrect, malformed or has
+      // expired") aimed at developers, not a caregiver on her phone.
+      final String message;
+      switch (e.code) {
+        case 'credential-already-in-use':
+        case 'email-already-in-use':
+          message = 'That email is already registered — try signing in instead.';
+        case 'invalid-credential':
+        case 'wrong-password':
+        case 'user-not-found':
+        case 'INVALID_LOGIN_CREDENTIALS':
+          message = 'Wrong email or password. Check both and try again.';
+        case 'invalid-email':
+          message = 'That email doesn\'t look right. Check it and try again.';
+        case 'network-request-failed':
+          message = 'No connection. Check your internet and try again.';
+        default:
+          message = e.message ?? 'Something went wrong. Try again.';
+      }
       setState(() => _error = message);
     } catch (_) {
       setState(() => _error = 'Could not reach the server. Check your connection.');
@@ -132,8 +151,12 @@ class _AuthPageState extends State<AuthPage> {
 
   // Debug-build-only escape hatch (see class doc comment). '/language',
   // not '/home' — same reasoning as the real-account path in _submit().
+  // Bootstraps explicitly because main.dart no longer does it for
+  // account-less sessions; without this the dev path has no householdId and
+  // "add a profile" throws.
   void _skipDev() {
     DevBypass.instance.skip();
+    unawaited(SelectedProfile.instance.initialize());
     context.go('/language');
   }
 

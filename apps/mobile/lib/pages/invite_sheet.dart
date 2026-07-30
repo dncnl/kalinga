@@ -124,7 +124,7 @@ class _InviteSheetState extends State<_InviteSheet> {
                 ),
                 child: _creating
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                    : Text('Create invite link', style: AppTextStyles.bodyMedium(fontSize: 15)),
+                    : Text('Create invite code', style: AppTextStyles.bodyMedium(fontSize: 15)),
               ),
             ),
           ] else ...[
