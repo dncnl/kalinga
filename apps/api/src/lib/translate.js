@@ -32,17 +32,27 @@ async function translateToEnglish({ text, sourceLocale, projectId }) {
   return translateText({ text, sourceLocale, targetLanguageCode: 'en', projectId });
 }
 
+// sourceLocale is optional: omit it entirely to let the Translation API
+// auto-detect the actual source language (used by symptom-check, where the
+// app's stored language preference doesn't guarantee what language THIS
+// message is typed in — forcing a wrong one previously produced
+// garbled/mixed-language output). If sourceLocale IS given, it must be a
+// real known code — an unmapped one is a programmer error, not a request
+// for auto-detect, so that still fails fast.
 async function translateText({ text, sourceLocale, targetLanguageCode, projectId }) {
-  const sourceLanguageCode = TRANSLATE_LANGUAGE_CODES[sourceLocale];
-  if (!sourceLanguageCode) {
-    throw new Error(`No Translation language mapping for locale "${sourceLocale}"`);
+  let sourceLanguageCode;
+  if (sourceLocale !== undefined) {
+    sourceLanguageCode = TRANSLATE_LANGUAGE_CODES[sourceLocale];
+    if (!sourceLanguageCode) {
+      throw new Error(`No Translation language mapping for locale "${sourceLocale}"`);
+    }
   }
 
   const [response] = await client.translateText({
     parent: `projects/${projectId}/locations/global`,
     contents: [text],
     mimeType: 'text/plain',
-    sourceLanguageCode,
+    ...(sourceLanguageCode ? { sourceLanguageCode } : {}),
     targetLanguageCode,
   });
 

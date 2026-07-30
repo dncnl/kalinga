@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:go_router/go_router.dart';
 import '../services/rag_service.dart';
 import '../state/locale_state.dart';
@@ -152,7 +153,16 @@ class _AskPageState extends State<AskPage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_result!.answer, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
+                  MarkdownBody(
+                    data: _result!.answer,
+                    styleSheet: MarkdownStyleSheet(
+                      p: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5),
+                      strong: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87, height: 1.5),
+                      listBullet: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5),
+                      h1: AppTextStyles.bodyMedium(fontSize: 18).copyWith(color: Colors.black87),
+                      h2: AppTextStyles.bodyMedium(fontSize: 16).copyWith(color: Colors.black87),
+                    ),
+                  ),
                   if (_result!.sources.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text('SOURCES', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),

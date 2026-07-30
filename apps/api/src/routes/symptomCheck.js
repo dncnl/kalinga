@@ -57,9 +57,15 @@ router.post(
       // English-only — see answer.js's retrievalQuery note); Mandarin
       // translation feeds the family/doctor summary. Independent, so run
       // both up front in parallel.
+      //
+      // sourceLocale is deliberately omitted here (not `locale`): the app's
+      // stored language preference doesn't guarantee what language THIS
+      // message is actually typed in, and forcing the wrong one previously
+      // produced garbled/mixed-language translations. Let the Translation
+      // API auto-detect instead.
       const [{ text: retrievalQuery }, { text: familySummaryZh }] = await Promise.all([
-        translateToEnglish({ text: trimmedMessage, sourceLocale: locale, projectId: firebase.projectId }),
-        translateToMandarin({ text: trimmedMessage, sourceLocale: locale, projectId: firebase.projectId }),
+        translateToEnglish({ text: trimmedMessage, projectId: firebase.projectId }),
+        translateToMandarin({ text: trimmedMessage, projectId: firebase.projectId }),
       ]);
 
       const { answer, sources } = await answerSymptomCheck({ message: trimmedMessage, locale, retrievalQuery });

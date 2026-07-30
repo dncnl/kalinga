@@ -167,6 +167,26 @@ clearly, in her own language, without waiting for someone who speaks Mandarin.
       added an urgency banner (color-coded none/attention/urgent/emergency)
       that explicitly says whether family/doctor were flagged, and shows
       the Mandarin summary when they were.
+- [x] **First-hand testing found 2 more real bugs, both fixed**:
+      1. Answering in the wrong/mixed language: `symptomCheckSystemPrompt`
+         forced a fixed target language from the app's *stored* locale
+         preference regardless of what the caregiver actually typed —
+         someone who wrote in English still got a Tagalog (sometimes
+         mixed-language, garbled) reply, since `LocaleState` defaults to
+         `fil` until a caregiver explicitly re-visits `/language` (which
+         doesn't happen for a returning caregiver, since onboarding is now
+         bypassed when a profile exists). Fixed two places: the prompt now
+         says to answer in the same language the message is written in
+         (stored locale is just the fallback for ambiguous short text), and
+         `translate.js`'s `translateText` now supports auto-detecting the
+         source language (used by the symptom-check route for both the
+         English retrieval-query and Mandarin family-summary translations)
+         instead of trusting the possibly-wrong stored locale — omitting
+         `sourceLocale` triggers auto-detect; passing an unmapped one still
+         fails fast (existing test coverage for that kept passing).
+      2. No markdown rendering: the model's `**bold**`/numbered-list output
+         was shown as raw Text, unreadable. Added `flutter_markdown_plus`
+         and render the answer with `MarkdownBody`.
 - [x] Live test — full flow run against real Firestore + real OpenRouter
       LLM/translation calls (auth mocked in-process, same `demo-household`
       approach as Feature 4's live test). Ran a non-urgent Tagalog message
