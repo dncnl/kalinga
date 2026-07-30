@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const firebase = require('../../src/firebase');
 const { client: speechClient } = require('../../src/lib/transcribe');
 const { client: translateClient } = require('../../src/lib/translate');
+const llmClient = require('../../src/lib/llmClient');
 const { processObservationJob } = require('../../src/lib/processObservationJob');
 
 const ARGS = {
@@ -23,31 +24,12 @@ function mockPipelineSuccess(t) {
   t.mock.method(translateClient, 'translateText', async () => [
     { translations: [{ translatedText: '他睡得很好。' }] },
   ]);
-  t.mock.method(global, 'fetch', async (url, opts) => {
-    const body = JSON.parse(opts.body);
-    // rollupDailySummary/rollupWeeklySummary don't call fetch -- only
-    // extractObservation does (OpenRouter tool-call).
-    if (body.messages) {
-      return {
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  categories: ['sleep'],
-                  comparisonToUsual: 'same',
-                  structuredObservation: { summary: 'Slept well.' },
-                  safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
-                }),
-              },
-            },
-          ],
-        }),
-      };
-    }
-    throw new Error(`unexpected fetch call: ${url}`);
-  });
+  t.mock.method(llmClient, 'generateStructured', async () => ({
+    categories: ['sleep'],
+    comparisonToUsual: 'same',
+    structuredObservation: { summary: 'Slept well.' },
+    safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
+  }));
 }
 
 test('runs the full pipeline, saves the observation, and triggers rollup', async (t) => {
