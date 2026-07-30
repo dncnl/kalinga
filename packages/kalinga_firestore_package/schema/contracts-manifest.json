@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Exhaustive generated-contract mapping for every authoritative Firestore document pattern.",
   "documents": {
     "_schema/{version}": {
@@ -81,6 +81,16 @@
       "interface": "ModelPolicyDocument",
       "documentHelper": "modelPolicy",
       "collectionHelper": "modelPolicies"
+    },
+    "ragSources/{sourceId}": {
+      "interface": "RagSourceDocument",
+      "documentHelper": "ragSource",
+      "collectionHelper": "ragSources"
+    },
+    "ragChunks/{chunkId}": {
+      "interface": "RagChunkDocument",
+      "documentHelper": "ragChunk",
+      "collectionHelper": "ragChunks"
     },
     "organizations/{organizationId}": {
       "interface": "OrganizationDocument",
