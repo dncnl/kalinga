@@ -58,9 +58,29 @@ the full demo path (§Definition of done below) passes end to end.
         inline and plain-language
   - Bugs found and fixed during this gate: see commits `3ca3470`, and the
     fix-list commit below.
-- [ ] Phase 2 — wire remaining screens to real endpoints, keep wiring table
-      (known mock/static: `prototype_checkin_page` schedules, `help_page`
-      contacts, `activity_page`, `prototype_patient_schedule_page`)
+- [ ] Phase 2 — wiring table (verified against `main`'s live routes)
+
+| Screen | Source | State |
+|---|---|---|
+| `welcome` / `role_select` | none (navigation only) | n/a ✓ |
+| `auth_page` | Firebase Auth + `POST /households/bootstrap` | verified ✓ |
+| `family_code_page` | `GET /invites/:code` | verified ✓ (contract fixed) |
+| `family_register_page` | Firebase Auth + `POST /invites/:code/accept` | verified ✓ (contract fixed) |
+| `family_recipients_page` | `FamilyViewerService` (mine + care-recipients + member doc) | verified ✓ |
+| `viewer_page` | `GET /care-recipients/:id/household` + `weeklySummaries` | verified ✓ (fixture alert removed) |
+| `prototype_language_page` | local state only | n/a ✓ |
+| `prototype_patient_page` | `POST/PATCH /households/:id/care-recipients` | verified ✓ |
+| `profile_picker_page` | `SelectedProfile` / `GET …/care-recipients` | verified ✓ |
+| `prototype_home_page` | meds today + observations | verified ✓ |
+| `prototype_log_page` | `ObservationService` + `dailySummaries` | wired (pre-existing) |
+| `meds_page` | `MedicationService` | wired (pre-existing) |
+| `ask_page` | `POST /rag/ask` | wired (pre-existing) |
+| `invite_sheet` | `POST /households/:id/invitations` | verified ✓ (contract fixed) |
+| `help_page` | static, by design — vetted hotlines + phrasebook | **F6 done ✓** |
+| `activity_page` | hardcoded `_items` fixture | **still mock** |
+| `prototype_patient_schedule_page` | local `_ScheduleEntry` list | **still mock** → F2 |
+| `prototype_checkin_page` | hardcoded schedule map | **still mock** → F3 |
+
 - [ ] Phase 3 — features
   - [ ] F0 scoping audit (careRecipientId threaded through every screen)
   - [ ] F1 structured symptom check-in (tap decision-tree + voice follow-up
@@ -68,8 +88,13 @@ the full demo path (§Definition of done below) passes end to end.
   - [ ] F2 labeled reminders (reuse tasks/taskEvents pattern)
   - [ ] F3 reminder-triggered structured check-ins (feed existing rollups)
   - [ ] F5 "must remember" + insights from existing rollups
-  - [ ] F6 emergency contacts (1955/119/110/0800-024-111) + phrasebook
-        incl. Hokkien caregiver→elder phrases
+  - [x] F6 emergency contacts + phrasebook. 119 / 110 / 1955 /
+        0800-024-111 (NIA foreign-resident line), real `tel:` dialling via
+        `url_launcher`. Removed the fabricated "Rosa's daughter" and
+        "city health hotline" rows — no household phone numbers are
+        collected anywhere, so a fake number in a crisis is worse than no
+        row at all. Mandarin phrasebook + **Hokkien caregiver→elder
+        phrases** (the resolved known gap). Personal-phone caveat in the UI.
   - [ ] F7 med OCR: move vision fallback chain to Vertex AI paid-model
         pattern (match text-extraction path)
 - [ ] Phase 4 — demo path end-to-end on Android; final report; ask before
