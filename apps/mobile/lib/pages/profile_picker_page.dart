@@ -216,6 +216,14 @@ class _ProfileTile extends StatelessWidget {
             ),
           ),
           if (selected) const Icon(Icons.check_circle, color: _teal, size: 22),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () => context.push('/patients/${recipient.id}'),
+            icon: Icon(Icons.info_outline_rounded, color: Colors.grey.shade400, size: 20),
+            tooltip: 'View details',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
         ]),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/rag_service.dart';
+import '../state/selected_profile.dart';
 import '../theme.dart';
 
 class AskPage extends StatefulWidget {
@@ -160,19 +161,27 @@ class _AskPageState extends State<AskPage> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
       GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38, decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text('LR', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
+          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
       ),
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Lola Rosa', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            Text('82 · speaks Hokkien', style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500)),
+            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            if (recipient != null)
+              Text(
+                [
+                  if (recipient.age != null) '${recipient.age}',
+                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
+                ].join(' · '),
+                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+              ),
           ]),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),
