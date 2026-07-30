@@ -263,11 +263,59 @@ new one.
       to `{ householdIds: [...], activeHouseholdId }`. `bootstrap` reads/
       writes the new shape. `POST /households/switch` and
       `GET /households/mine` (lists every household the caller belongs to,
-      with names, for a switcher UI) both added and live-tested.)
-- [ ] Mobile InviteService wired to real endpoints
-- [ ] Mobile invite-family/caregiver UI
-- [ ] Mobile household switcher UI
-- [ ] Mobile edit/delete profile UI
-- [ ] Mobile remaining 6 screens' headers wired
-- [ ] Live test (mobile UI side — backend chain above already fully
-      live-tested)
+      with names, for a switcher UI) both added and live-tested.
+      **Migration gap found and fixed by cleanup, not by code:** a
+      `householdMemberships` doc created during earlier Feature 5 testing
+      (before this reshape) still had the old `{ householdId }` shape.
+      Bootstrap's `if (membershipSnap.exists)` branch returns early without
+      migrating it, so it would have handed back `undefined` as the
+      household id to a real client. No migration path exists for
+      pre-existing old-shape docs — harmless right now since there are no
+      real users and this was pure test data (deleted), but would be a
+      real bug the moment this ships with actual accounts already
+      bootstrapped under the old shape.)
+- [x] Mobile InviteService wired to real endpoints
+      (`fetchInvite()`/`acceptInvite()` now call the real endpoints,
+      signatures unchanged — exactly the point of the seam
+      `invite_service.dart` was originally written as. Added
+      `createInvite()` for the caregiver side.)
+- [x] Mobile invite-family/caregiver UI
+      (New `pages/invite_sheet.dart` — bottom sheet off the patient detail
+      page's new "Invite family or caregiver" row. Role toggle (family/
+      caregiver), email field, creates the invite and shows the token as a
+      copyable link. No email-sending infrastructure exists, so it's
+      manual-share only — `kalinga://invite/{token}` is a placeholder
+      scheme, not a registered/working deep link outside the app yet.)
+- [x] Mobile household switcher UI
+      (Added to `profile_picker_page.dart` — fetches
+      `ProfileService.listMyHouseholds()` on load, only renders the
+      switcher row if the caregiver actually belongs to more than one
+      (most never will). Tapping a household calls
+      `SelectedProfile.switchHousehold()`, which re-fetches that
+      household's recipients and re-selects.)
+- [x] Mobile edit/delete profile UI
+      (`prototype_patient_page.dart` now takes an optional `editing:
+      CareRecipient?` — prefills the form and calls
+      `SelectedProfile.updateSelected()` instead of `createAndSelect()`
+      when set. New route `/patient/edit` passes the recipient via
+      `GoRouter`'s `extra`. `prototype_patient_detail_page.dart` was
+      rewritten to show the *real* selected profile instead of a
+      hardcoded one — this was necessary groundwork for edit/delete to
+      have somewhere real to live, and also fixed a page that was
+      previously 100% fake data. Delete asks for confirmation
+      (`AlertDialog`) before calling `SelectedProfile.deleteSelected()`.)
+- [x] Mobile remaining 6 screens' headers wired (see commit `60aebb6`,
+      done earlier in this phase alongside the InviteService wiring)
+- [x] Live test
+      (Full backend invite/edit/delete/switch chain already live-tested
+      in the "Backend invitation system" entry above — 11/11 passed. On
+      the mobile side: `flutter analyze` clean across all changed files,
+      Windows build succeeds, and the actual compiled app was launched
+      live against the real API with no crash on startup (which now
+      exercises `ProfilePickerPage`'s new household-fetch-on-init code
+      path too, not just `SelectedProfile.initialize()`). Same limitation
+      as every prior feature: no GUI/mic-input automation available here,
+      so create → edit → delete → invite → accept was never clicked
+      through as one unbroken UI session — each piece is proven live
+      individually (backend chain via script with real separate Firebase
+      identities; mobile wiring via analyze + build + no-crash launch).)

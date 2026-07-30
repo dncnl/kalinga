@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import 'services/profile_service.dart';
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
 import 'pages/profile_picker_page.dart';
@@ -22,6 +23,8 @@ final router = GoRouter(
   routes: [
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),
+    GoRoute(path: '/patient/edit',
+        builder: (c, s) => PrototypePatientPage(editing: s.extra as CareRecipient?)),
     GoRoute(path: '/profiles',  builder: (c, s) => const ProfilePickerPage()),
     GoRoute(path: '/home',      builder: (c, s) => const PrototypeHomePage()),
     GoRoute(path: '/ask',       builder: (c, s) => const AskPage()),

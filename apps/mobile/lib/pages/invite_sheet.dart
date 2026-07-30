@@ -1,0 +1,213 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../services/invite_service.dart';
+import '../services/profile_service.dart';
+import '../state/selected_profile.dart';
+import '../theme.dart';
+
+/// No email-sending infrastructure exists (see PLAN.md) — this generates a
+/// token via apps/api and shows it as a copyable link for the caregiver to
+/// share manually (message, etc). "kalinga://invite/{token}" is a
+/// placeholder scheme, not a registered/working deep link yet — clicking it
+/// outside the app won't do anything until real link infrastructure exists.
+Future<void> showInviteSheet(BuildContext context, {required CareRecipient recipient}) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) => _InviteSheet(recipient: recipient),
+  );
+}
+
+class _InviteSheet extends StatefulWidget {
+  final CareRecipient recipient;
+  const _InviteSheet({required this.recipient});
+
+  @override
+  State<_InviteSheet> createState() => _InviteSheetState();
+}
+
+class _InviteSheetState extends State<_InviteSheet> {
+  static const _teal = Color(0xFF2BBFB3);
+  static const _red = Color(0xFFEF3E23);
+
+  final _inviteService = InviteService();
+  final _emailController = TextEditingController();
+  String _role = 'family';
+  bool _creating = false;
+  String? _error;
+  String? _link;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email.');
+      return;
+    }
+
+    final householdId = SelectedProfile.instance.householdId;
+    if (householdId == null) {
+      setState(() => _error = 'No household — try again after the app finishes loading.');
+      return;
+    }
+
+    setState(() {
+      _creating = true;
+      _error = null;
+    });
+
+    try {
+      final token = await _inviteService.createInvite(
+        householdId: householdId,
+        intendedRole: _role,
+        invitedEmail: email,
+        careRecipientId: widget.recipient.id,
+      );
+      setState(() => _link = 'kalinga://invite/$token');
+    } catch (e) {
+      setState(() => _error = 'Could not create invite: $e');
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24, right: 24, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Invite someone', style: AppTextStyles.heading(fontSize: 24).copyWith(color: Colors.black)),
+          const SizedBox(height: 4),
+          Text('For ${widget.recipient.displayName}',
+              style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
+          const SizedBox(height: 20),
+
+          if (_link == null) ...[
+            Row(children: [
+              Expanded(
+                child: _RolePill(
+                  label: 'Family (read-only)',
+                  selected: _role == 'family',
+                  onTap: () => setState(() => _role = 'family'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _RolePill(
+                  label: 'Caregiver',
+                  selected: _role == 'caregiver',
+                  onTap: () => setState(() => _role = 'caregiver'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'their@email.com',
+                filled: true,
+                fillColor: const Color(0xFFF5F0E8),
+                contentPadding: const EdgeInsets.all(16),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _creating ? null : _create,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _teal,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _creating
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                    : Text('Create invite link', style: AppTextStyles.bodyMedium(fontSize: 15)),
+              ),
+            ),
+          ] else ...[
+            Text('Share this link:', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: const Color(0xFFF5F0E8), borderRadius: BorderRadius.circular(12)),
+              child: Text(_link!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _link!));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+                },
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: Text('Copy link', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Colors.black87, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Expires in 7 days.', style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RolePill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RolePill({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? Colors.black87 : Colors.white,
+          border: Border.all(color: selected ? Colors.black87 : Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Center(
+          child: Text(label,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: selected ? Colors.white : Colors.black87)),
+        ),
+      ),
+    );
+  }
+}

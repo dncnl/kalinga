@@ -86,4 +86,75 @@ class SelectedProfile extends ChangeNotifier {
     careRecipients = [...careRecipients, recipient];
     await select(recipient);
   }
+
+  Future<void> updateSelected({
+    required String displayName,
+    int? age,
+    List<String> preferredLanguages = const [],
+    List<String> conditions = const [],
+  }) async {
+    final id = householdId;
+    final recipient = careRecipient;
+    if (id == null || recipient == null) {
+      throw StateError('No profile selected to update');
+    }
+    await _profileService.updateCareRecipient(
+      id,
+      recipient.id,
+      displayName: displayName,
+      age: age,
+      preferredLanguages: preferredLanguages,
+      conditions: conditions,
+    );
+    final updated = CareRecipient(
+      id: recipient.id,
+      displayName: displayName,
+      age: age,
+      preferredLanguages: preferredLanguages,
+      conditions: conditions,
+    );
+    careRecipients = [
+      for (final r in careRecipients) if (r.id == updated.id) updated else r,
+    ];
+    careRecipient = updated;
+    notifyListeners();
+  }
+
+  /// Deletes (archives) the currently selected profile, then selects
+  /// whichever profile is next in the list, or null if none remain.
+  Future<void> deleteSelected() async {
+    final id = householdId;
+    final recipient = careRecipient;
+    if (id == null || recipient == null) {
+      throw StateError('No profile selected to delete');
+    }
+    await _profileService.deleteCareRecipient(id, recipient.id);
+    careRecipients = careRecipients.where((r) => r.id != recipient.id).toList();
+    if (careRecipients.isNotEmpty) {
+      await select(careRecipients.first);
+    } else {
+      careRecipient = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefsCareRecipientIdKey);
+      notifyListeners();
+    }
+  }
+
+  /// Switches the active household (must already be a member — see
+  /// apps/api's POST /households/switch) and reloads its recipients.
+  Future<void> switchHousehold(String newHouseholdId) async {
+    await _profileService.switchHousehold(newHouseholdId);
+    householdId = newHouseholdId;
+    careRecipients = await _profileService.listCareRecipients(newHouseholdId);
+    careRecipient = careRecipients.isNotEmpty ? careRecipients.first : null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsHouseholdIdKey, newHouseholdId);
+    if (careRecipient != null) {
+      await prefs.setString(_prefsCareRecipientIdKey, careRecipient!.id);
+    } else {
+      await prefs.remove(_prefsCareRecipientIdKey);
+    }
+    notifyListeners();
+  }
 }

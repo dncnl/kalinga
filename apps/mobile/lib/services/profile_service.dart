@@ -103,4 +103,84 @@ class ProfileService {
       conditions: conditions,
     );
   }
+
+  Future<void> updateCareRecipient(
+    String householdId,
+    String careRecipientId, {
+    required String displayName,
+    int? age,
+    List<String> preferredLanguages = const [],
+    List<String> conditions = const [],
+  }) async {
+    final token = await getIdToken();
+    final res = await http.patch(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'displayName': displayName,
+        'age': age,
+        'preferredLanguages': preferredLanguages,
+        'conditions': conditions,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to update care recipient: ${res.body}');
+    }
+  }
+
+  /// Soft delete (archive) only — see apps/api/src/routes/households.js.
+  Future<void> deleteCareRecipient(String householdId, String careRecipientId) async {
+    final token = await getIdToken();
+    final res = await http.delete(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to delete care recipient: ${res.body}');
+    }
+  }
+
+  Future<List<HouseholdSummary>> listMyHouseholds() async {
+    final token = await getIdToken();
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/households/mine'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to list households: ${res.body}');
+    }
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final households = (body['households'] as List)
+        .map((h) => HouseholdSummary.fromJson(h as Map<String, dynamic>))
+        .toList();
+    return households;
+  }
+
+  Future<void> switchHousehold(String householdId) async {
+    final token = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/switch'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'householdId': householdId}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to switch household: ${res.body}');
+    }
+  }
+}
+
+class HouseholdSummary {
+  final String id;
+  final String name;
+
+  HouseholdSummary({required this.id, required this.name});
+
+  factory HouseholdSummary.fromJson(Map<String, dynamic> json) =>
+      HouseholdSummary(id: json['id'] as String, name: json['name'] as String);
 }

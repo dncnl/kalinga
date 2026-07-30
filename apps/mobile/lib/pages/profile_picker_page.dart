@@ -8,12 +8,55 @@ import '../theme.dart';
 /// "Who do you care for?" picker — Feature 5. Lists every profile in the
 /// caregiver's household, lets her switch which one every subsequent log,
 /// alert, and med-reminder is scoped to (SelectedProfile.instance).
-class ProfilePickerPage extends StatelessWidget {
+///
+/// Also shows a household switcher when the caregiver belongs to more than
+/// one (e.g. she accepted someone else's invite) — most caregivers only
+/// ever have the one auto-created household, so this section only appears
+/// when it's actually relevant.
+class ProfilePickerPage extends StatefulWidget {
   const ProfilePickerPage({super.key});
 
+  @override
+  State<ProfilePickerPage> createState() => _ProfilePickerPageState();
+}
+
+class _ProfilePickerPageState extends State<ProfilePickerPage> {
   static const _bg = Color(0xFFF5F0E8);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
+
+  final _profileService = const ProfileService();
+  List<HouseholdSummary> _households = [];
+  bool _switching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHouseholds();
+  }
+
+  Future<void> _loadHouseholds() async {
+    try {
+      final households = await _profileService.listMyHouseholds();
+      if (mounted) setState(() => _households = households);
+    } catch (_) {
+      // Household switcher is a nice-to-have — if this fails, just don't
+      // show it rather than blocking the whole profile picker.
+    }
+  }
+
+  Future<void> _switchTo(String householdId) async {
+    setState(() => _switching = true);
+    try {
+      await SelectedProfile.instance.switchHousehold(householdId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not switch: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +96,30 @@ class ProfilePickerPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
+                  if (_households.length > 1) ...[
+                    Text('HOUSEHOLD', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _households.map((h) {
+                        final active = h.id == state.householdId;
+                        return GestureDetector(
+                          onTap: _switching || active ? null : () => _switchTo(h.id),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: active ? Colors.black87 : Colors.white,
+                              border: Border.all(color: active ? Colors.black87 : Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(32),
+                            ),
+                            child: Text(h.name, style: AppTextStyles.body(fontSize: 13).copyWith(color: active ? Colors.white : Colors.black87)),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   Expanded(
                     child: state.careRecipients.isEmpty
                         ? Center(

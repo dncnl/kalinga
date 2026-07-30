@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/profile_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 
@@ -23,7 +24,12 @@ const _languages = [
 ];
 
 class PrototypePatientPage extends StatefulWidget {
-  const PrototypePatientPage({super.key});
+  /// When non-null, this screen edits [editing] instead of creating a new
+  /// profile — prefills the form and calls SelectedProfile.updateSelected()
+  /// on submit. [editing] must already be the selected profile (the picker/
+  /// detail page selects it before navigating here).
+  final CareRecipient? editing;
+  const PrototypePatientPage({super.key, this.editing});
 
   @override
   State<PrototypePatientPage> createState() => _PrototypePatientPageState();
@@ -34,10 +40,14 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
   static const _red = Color(0xFFEF3E23);
   static const _chipSelected = Color(0xFF111111);
 
-  final _nameController = TextEditingController();
-  final _ageController = TextEditingController();
-  String _selectedLanguage = _languages.first;
-  final Set<String> _selectedConditions = {'dementia', 'hypertension'};
+  late final _nameController = TextEditingController(text: widget.editing?.displayName ?? '');
+  late final _ageController = TextEditingController(text: widget.editing?.age?.toString() ?? '');
+  late String _selectedLanguage = widget.editing?.preferredLanguages.firstOrNull ?? _languages.first;
+  late final Set<String> _selectedConditions = {
+    ...(widget.editing?.conditions ?? const ['dementia', 'hypertension']),
+  };
+
+  bool get _isEditing => widget.editing != null;
 
   bool _saving = false;
   String? _error;
@@ -62,14 +72,25 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
     });
 
     try {
-      await SelectedProfile.instance.createAndSelect(
-        displayName: name,
-        age: int.tryParse(_ageController.text.trim()),
-        preferredLanguages: [_selectedLanguage],
-        conditions: _selectedConditions.toList(),
-      );
-      if (!mounted) return;
-      context.go('/home');
+      if (_isEditing) {
+        await SelectedProfile.instance.updateSelected(
+          displayName: name,
+          age: int.tryParse(_ageController.text.trim()),
+          preferredLanguages: [_selectedLanguage],
+          conditions: _selectedConditions.toList(),
+        );
+        if (!mounted) return;
+        context.pop();
+      } else {
+        await SelectedProfile.instance.createAndSelect(
+          displayName: name,
+          age: int.tryParse(_ageController.text.trim()),
+          preferredLanguages: [_selectedLanguage],
+          conditions: _selectedConditions.toList(),
+        );
+        if (!mounted) return;
+        context.go('/home');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Could not save: $e');
@@ -91,19 +112,20 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
               const SizedBox(height: 24),
 
               // ── Step label ─────────────────────────────────────────────
-              Text(
-                'STEP 2 OF 2',
-                style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(
-                  color: Colors.grey.shade500,
-                  letterSpacing: 0.5,
+              if (!_isEditing)
+                Text(
+                  'STEP 2 OF 2',
+                  style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+              if (!_isEditing) const SizedBox(height: 8),
 
               // ── Title ──────────────────────────────────────────────────
               Text(
-                'Who do you care for?',
+                _isEditing ? 'Edit profile' : 'Who do you care for?',
                 style: AppTextStyles.heading(fontSize: 32).copyWith(
                   color: Colors.black,
                 ),
@@ -113,7 +135,7 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
 
               // ── Subtitle ───────────────────────────────────────────────
               Text(
-                'Add one elder now. You can add more later.',
+                _isEditing ? 'Update their details.' : 'Add one elder now. You can add more later.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(
                   color: Colors.grey.shade600,
                 ),
@@ -271,7 +293,7 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
                           child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
                         )
                       : Text(
-                          'Save and start',
+                          _isEditing ? 'Save changes' : 'Save and start',
                           style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(
                             color: Colors.white,
                           ),
