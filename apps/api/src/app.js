@@ -7,6 +7,7 @@ const rollupRouter = require('./routes/rollup');
 const ragRouter = require('./routes/rag');
 const householdsRouter = require('./routes/households');
 const invitesRouter = require('./routes/invites');
+const medicationsRouter = require('./routes/medications');
 
 const app = express();
 
@@ -19,5 +20,6 @@ app.use(rollupRouter);
 app.use(ragRouter);
 app.use(householdsRouter);
 app.use(invitesRouter);
+app.use(medicationsRouter);
 
 module.exports = app;
