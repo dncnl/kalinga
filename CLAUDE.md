@@ -8,6 +8,11 @@
 
 ## Git conventions
 - Do NOT add a `Co-Authored-By: Claude` trailer to commits.
+- `PLAN.md` is per-branch, not cumulative: it should contain only the plan
+  for the feature currently being worked on. When starting a new feature
+  branch, clear it out rather than appending — don't carry over completed
+  features' history from previous branches (that history lives in git log
+  and merged commits already).
 
 ## Project description
 
@@ -29,4 +34,4 @@ The human cost of this gap is measurable. Among Indonesian domestic workers surv
 - Basic med-reminder + dosage photo-recognition, reducing medication errors tied to the training gap (22% of caregivers arrive with no elder-care training; Wu et al., 2022)
 - Multi-patient profiles — the caregiver picks who she's logging for (e.g. "Mr. Chen," "Lola Rosa") before any log or check-in, keeping each elder's history, meds, and trends cleanly separated. Every insight, alert, and med-reminder is scoped to the selected profile.
 
-See `PLAN.md` for implementation status of the daily voice-log feature and the RAG (retrieval-augmented generation) backend component.
+See `PLAN.md` for the plan of whatever feature is currently in progress on this branch.
