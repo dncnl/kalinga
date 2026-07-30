@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../state/selected_profile.dart';
 import '../theme.dart';
 
 enum _AuthMode { register, login }
@@ -62,6 +63,11 @@ class _AuthPageState extends State<AuthPage> {
       } else {
         await auth.signInWithEmailAndPassword(email: email, password: password);
       }
+      // The app may have already bootstrapped a household for a different
+      // (anonymous) UID at cold start (see main.dart) — re-run it now for
+      // whichever UID is active after sign-in/register, or every
+      // household-scoped call 403s until the app restarts.
+      await SelectedProfile.instance.initialize();
       if (!mounted) return;
       context.go('/home');
     } on FirebaseAuthException catch (e) {
