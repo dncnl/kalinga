@@ -7,9 +7,15 @@
 serviceAccountKey.json
 **/serviceAccountKey.json
 *-service-account*.json
-google-services.json
-GoogleService-Info.plist
-apps/mobile/lib/firebase_options.dart
+
+# google-services.json / GoogleService-Info.plist / firebase_options.dart are
+# NOT secrets — Firebase client config (apiKey, appId, projectId, ...) is
+# public by design; it ships inside every built app binary and Firebase's
+# security model relies on Firestore/Storage Rules, not on hiding this.
+# They're committed on purpose so `git pull` gives everyone the same
+# correct kalinga-bc97f config instead of each dev generating their own via
+# `flutterfire configure` (a step that's easy to point at the wrong/a new
+# project by mistake — see README.md §3.3).
 
 # ─────────────────────────────────────────────
 # Node / Express (apps/api)

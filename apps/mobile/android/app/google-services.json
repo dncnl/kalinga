@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "742210340367",
+    "project_id": "kalinga-bc97f",
+    "storage_bucket": "kalinga-bc97f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:742210340367:android:34817342e86c01bff0c57a",
+        "android_client_info": {
+          "package_name": "com.kalinga.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRAuyVwW4kbO5HbOj1c4hUKdkp8xRhJes"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
