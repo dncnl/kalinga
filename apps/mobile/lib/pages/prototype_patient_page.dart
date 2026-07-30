@@ -72,6 +72,16 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
     });
 
     try {
+      // main.dart fires SelectedProfile.initialize() unawaited so startup
+      // isn't blocked on a network round trip — on a slow first load
+      // (web cold-start especially) a caregiver can reach this screen and
+      // submit before householdId is populated. Wait for it here instead
+      // of failing with "initialize() must complete first".
+      await SelectedProfile.instance.ready;
+      if (SelectedProfile.instance.householdId == null) {
+        throw Exception(SelectedProfile.instance.error ?? 'Could not load household — check your connection.');
+      }
+
       if (_isEditing) {
         await SelectedProfile.instance.updateSelected(
           displayName: name,

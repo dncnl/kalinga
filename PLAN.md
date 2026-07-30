@@ -57,10 +57,68 @@ confirmation step is not optional in this implementation.
 
 ## Progress
 
-- [ ] Backend medication CRUD
-- [ ] Backend photo-scan pipeline
-- [ ] Backend confirm endpoint
-- [ ] Backend medication events (generate + mark taken/skipped)
-- [ ] Mobile MedicationService
-- [ ] Mobile meds_page.dart wired
-- [ ] Live test
+- [x] Backend medication CRUD — `apps/api/src/routes/medications.js`:
+      POST/GET/PATCH/DELETE (soft, `status: 'cancelled'`) on
+      `.../medications`. Manual entries save `sourceType: 'familyEntry'`,
+      `verificationStatus: 'familyConfirmed'` immediately (a human typed it).
+- [x] Backend photo-scan pipeline — `upload-url` (signed write URL, same
+      pattern as voice-log audio) + `:medicationId/process` (signed *read*
+      URL so OpenRouter can fetch the image, sends to a vision model via new
+      `apps/api/src/lib/extractMedicationLabel.js`, saves the result as
+      `verificationStatus: 'unverified'` / `sourceType: 'labelOcrDraft'` —
+      never auto-confirmed). 3 free vision models tried in fallback order
+      (`google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free`,
+      `nvidia/nemotron-nano-12b-v2-vl:free`), same fallback-chain pattern as
+      `extractObservation.js`.
+- [x] Backend confirm endpoint — `POST :medicationId/confirm`, lets the
+      caregiver edit any field before flipping `verificationStatus` to
+      `familyConfirmed`. Not calling it leaves the medication permanently
+      `unverified` — the safe default.
+- [x] Backend medication events — `POST /medication-events/generate-today`
+      (idempotent: only creates events for `(medicationId, time)` pairs that
+      don't already have one today, so it can't reset an already-recorded
+      'completed' back to 'scheduled'), `GET /medication-events` (today's
+      events), `PATCH /medication-events/:id` (mark
+      completed/skipped/refused/notAvailable/needsClarification). Only
+      confirmed medications (`verificationStatus != 'unverified'`) generate
+      events.
+- [x] Unit tests — `apps/api/test/routes/medications.test.js`, 18 tests, all
+      passing (mocked Firestore + mocked `fetch` for the vision call, same
+      pattern as `observations-process.test.js`). Full suite: 124/127 pass;
+      the 3 failures are pre-existing OpenRouter rate-limit flakes in
+      `extractObservation` tests, unrelated to this branch.
+- [x] Mobile MedicationService — `apps/mobile/lib/services/medication_service.dart`,
+      wraps CRUD + upload-url/process/confirm + events (generate-today,
+      list, mark). Fixed a bug found while wiring this up: Firestore
+      `Timestamp` was serializing as `{_seconds, _nanoseconds}` in the
+      events GET response instead of an ISO string — fixed in
+      `medications.js` by converting explicitly with `.toDate().toISOString()`
+      before `res.json()`.
+- [x] Mobile meds_page.dart wired — real scan (image_picker camera) →
+      upload → process → review/edit bottom sheet (draft is never silently
+      accepted — caregiver sees every extracted field and must tap Confirm)
+      → real medication + event list → real mark-taken. Added `image_picker`
+      dependency, `CAMERA` permission (Android manifest) and
+      `NSCameraUsageDescription` (iOS Info.plist).
+- [x] Live test — backend CRUD + medication-events flow run against the
+      real `kalinga-bc97f` Firestore project (auth mocked in-process since
+      no client SDK was available in this environment to mint a real ID
+      token; all Firestore reads/writes were real, using the
+      `demo-household` bypass). Full flow verified: create → list → patch →
+      generate-today (created exactly 1 event) → idempotency (re-running
+      generate-today created 0 more) → mark completed → regenerate again
+      (confirmed a completed event is never reset back to 'scheduled') →
+      soft-delete. Test data cleaned up afterward.
+      **Bug found and fixed**: `generate-today`'s Firestore query
+      (`status == 'active'` combined with `verificationStatus != 'unverified'`)
+      needed a composite index and failed with `FAILED_PRECONDITION` in
+      production — the mocked unit tests didn't catch this since they don't
+      exercise real Firestore query planning. Fixed by dropping the second
+      `where` and filtering `verificationStatus` in memory instead (medication
+      counts per elder are small; not worth provisioning an index for).
+      **Not exercised live**: the photo-scan `/process` endpoint (real
+      vision-model call) — skipped to avoid burning OpenRouter's rate-limited
+      free-tier quota on a throwaway run; the mocked unit test covers success
+      and all-models-fail paths. Mobile UI (camera capture → confirm sheet →
+      real list) has not been run on an actual device/emulator in this
+      environment — needs a manual pass before calling Feature 4 done.

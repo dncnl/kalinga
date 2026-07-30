@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import 'services/profile_service.dart';
+import 'state/selected_profile.dart';
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
 import 'pages/profile_picker_page.dart';
@@ -20,6 +21,19 @@ import 'pages/family_register_page.dart';
 
 final router = GoRouter(
   initialLocation: '/language',
+  // SelectedProfile.initialize() (fired unawaited in main.dart) restores an
+  // already-onboarded caregiver's household/profile from the server. Once
+  // that resolves and finds an existing profile, skip the onboarding
+  // flow (/language, /patient) straight to /home instead of making a
+  // returning caregiver click through it again every launch.
+  refreshListenable: SelectedProfile.instance,
+  redirect: (context, state) {
+    final profile = SelectedProfile.instance;
+    if (!profile.hasProfile) return null;
+
+    final onboarding = state.matchedLocation == '/language' || state.matchedLocation == '/patient';
+    return onboarding ? '/home' : null;
+  },
   routes: [
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),

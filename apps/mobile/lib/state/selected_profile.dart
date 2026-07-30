@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,10 +28,21 @@ class SelectedProfile extends ChangeNotifier {
 
   bool get hasProfile => careRecipient != null;
 
+  Completer<void> _readyCompleter = Completer<void>();
+
+  /// Resolves once the in-flight (or most recent) [initialize] call has
+  /// finished, success or failure. `main.dart` fires [initialize]
+  /// unawaited so app startup isn't blocked on a network round trip — any
+  /// screen that needs householdId/careRecipients populated before acting
+  /// (e.g. a "create profile" submit button) should `await` this first
+  /// rather than assume initialize() already completed.
+  Future<void> get ready => _readyCompleter.future;
+
   /// Call once at app start: bootstraps the household, loads all its care
   /// recipients, and restores the last-selected one (or picks the first
   /// available if the persisted id no longer exists / none was ever set).
   Future<void> initialize() async {
+    if (_readyCompleter.isCompleted) _readyCompleter = Completer<void>();
     isLoading = true;
     error = null;
     notifyListeners();
@@ -56,6 +69,7 @@ class SelectedProfile extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+      if (!_readyCompleter.isCompleted) _readyCompleter.complete();
     }
   }
 
