@@ -1,6 +1,8 @@
-// Ingests a single document, one chunk-batch write, into the same
-// ragChunks collection that ingest.js seeds. Two ways to point it at a
-// document:
+// Ingests a single document: writes the raw text into ragSources (the same
+// collection ingest.js reads from, so a later full re-ingest picks this
+// document up too — see ingest.js), then chunks + embeds it straight into
+// ragChunks so it's searchable immediately without a second manual step.
+// Two ways to point it at a document:
 //   - Local file:  node ingest-file.js ./doc.pdf --title=... --publisher=... --url=... [--category=...] [--id=...]
 //   - GCS object (Cloud Run Job): set BUCKET_NAME / OBJECT_NAME env vars;
 //     title/publisher/url/category/id are read from the object's custom
@@ -97,6 +99,21 @@ async function loadDocument() {
 
 async function ingestFile() {
   const source = await loadDocument();
+
+  // Persisted first and separately from the chunking below: if chunking or
+  // embedding fails partway, the raw document is still saved and a plain
+  // re-run of ingest.js (reading from ragSources) can pick it up later
+  // instead of losing the whole upload.
+  await db.collection('ragSources').doc(source.id).set({
+    title: source.title,
+    publisher: source.publisher,
+    url: source.url,
+    retrievedAt: source.retrievedAt,
+    category: source.category,
+    text: source.text,
+    updatedAt: new Date(),
+  });
+
   const chunks = chunkText(source.text);
   const embeddings = await embedBatch(chunks);
 
