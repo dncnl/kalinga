@@ -6,6 +6,9 @@ const { isCaregiverAssigned } = require('../lib/authorizeCaregiver');
 const { dayBoundsUtc } = require('../lib/rollupDailySummary');
 const { extractMedicationLabel } = require('../lib/extractMedicationLabel');
 const { slugId, timestampId } = require('../lib/readableId');
+// Namespace require (not destructured) so tests can mock
+// signedUploadUrl.getSignedUploadUrl directly.
+const signedUploadUrl = require('../lib/signedUploadUrl');
 
 const router = Router();
 
@@ -191,10 +194,13 @@ router.post(
       .set({ status: 'pendingUpload', photoExtension: extension, createdAt: new Date() });
 
     const expiresAt = Date.now() + UPLOAD_URL_TTL_MS;
-    const [uploadUrl] = await firebase
-      .getBucket()
-      .file(storagePath)
-      .getSignedUrl({ version: 'v4', action: 'write', expires: expiresAt, contentType });
+    let uploadUrl;
+    try {
+      uploadUrl = await signedUploadUrl.getSignedUploadUrl({ storagePath, contentType, expiresAt });
+    } catch (err) {
+      console.error('medications upload-url: could not sign URL:', err.cause || err);
+      return res.status(502).json({ error: err.message });
+    }
 
     res.json({ medicationId, uploadUrl, storagePath, expiresAt });
   },

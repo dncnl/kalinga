@@ -162,6 +162,31 @@ test('POST /medications/upload-url returns a signed write URL', async (t) => {
   assert.match(res.body.uploadUrl, /^https:\/\/signed\.example\.com\/write/);
 });
 
+// Regression: this used to be an unhandled rejection, which Express served
+// as a raw HTML error page (the caregiver saw a stack trace instead of a
+// message). Must now come back as clean JSON.
+test('POST /medications/upload-url returns a clean JSON error when signing fails', async (t) => {
+  mockAuthedUser(t, 'caregiver-1');
+  mockAssignment(t, { status: 'active' });
+
+  t.mock.method(firebase.db, 'collection', () => ({ doc: () => ({ id: 'med-1' }) }));
+  t.mock.method(firebase, 'getBucket', () => ({
+    file: () => ({
+      getSignedUrl: async () => {
+        throw new Error('Cannot sign data without `client_email`.');
+      },
+    }),
+  }));
+
+  const res = await request(app)
+    .post(`${BASE}/medications/upload-url`)
+    .set('Authorization', 'Bearer token')
+    .send({ contentType: 'image/jpeg' });
+
+  assert.equal(res.status, 502);
+  assert.match(res.body.error, /FIREBASE_SERVICE_ACCOUNT/);
+});
+
 // The label scan now goes through llmClient's Vertex vision path rather
 // than a raw fetch to OpenRouter, so the seam to mock is the client, not
 // global.fetch. getBucket only needs a name now: Vertex reads the object by
