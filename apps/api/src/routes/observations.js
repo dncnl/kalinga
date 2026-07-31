@@ -266,4 +266,75 @@ router.post(
   },
 );
 
+// Dev-only demo log — for filming/showcasing the voice-log trend chart
+// without needing a working mic or real speech, so a screen recording
+// isn't at the mercy of Speech-to-Text picking up whatever's actually
+// said. Skips the whole audio pipeline (upload/STT) and writes a
+// plausible-looking observation straight through the same
+// buildObservationDocument + rollup path a real voice log uses, so the
+// chart updates exactly the way it would for a real log. Randomized
+// gently upward of neutral so a short demo clip shows a nice trend
+// without looking obviously fake or reusing one canned number.
+router.post(
+  '/households/:householdId/care-recipients/:careRecipientId/observations/demo-log',
+  requireAuth,
+  async (req, res) => {
+    const { householdId, careRecipientId } = req.params;
+
+    const assigned = await isCaregiverAssigned({ householdId, careRecipientId, uid: req.uid });
+    if (!assigned) {
+      return res.status(403).json({ error: 'Not an active caregiver for this care recipient' });
+    }
+
+    const randomInRange = (min, max) => Math.round((min + Math.random() * (max - min)) * 100) / 100;
+    const summaryText = 'Demo log for showcase recording — no real observation.';
+
+    const observationId = timestampId();
+    const observationRef = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`,
+    );
+
+    await observationRef.set(
+      buildObservationDocument({
+        uid: req.uid,
+        locale: 'en',
+        transcript: summaryText,
+        // No real translation call — this never needs to be read by
+        // family, it exists purely to move the demo trend chart, and a
+        // live network call here is one more thing that could stall a
+        // recording.
+        translatedText: '（展示用示範記錄，非真實內容）',
+        inputMode: 'text',
+        extraction: {
+          categories: ['sleep', 'appetite', 'mood'],
+          comparisonToUsual: 'better',
+          structuredObservation: {
+            summary: summaryText,
+            sleepQuality: randomInRange(0.65, 0.95),
+            appetiteLevel: randomInRange(0.65, 0.95),
+            moodScore: randomInRange(0.65, 0.95),
+          },
+          safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
+        },
+      }),
+    );
+
+    await Promise.all([
+      rollupDailySummary.computeAndSaveDailySummary({
+        householdId,
+        careRecipientId,
+        dateKey: dateKeyOf(new Date()),
+      }),
+      rollupWeeklySummary.computeAndSaveWeeklySummary({
+        householdId,
+        careRecipientId,
+        weekKey: currentWeekKey(),
+        periodStart: currentWeekStartUtc().toISOString(),
+      }),
+    ]);
+
+    res.json({ observationId });
+  },
+);
+
 module.exports = router;

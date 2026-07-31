@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:record/record.dart';
 
+import '../state/dev_bypass.dart';
 import '../state/selected_profile.dart';
 import '../services/observation_service.dart';
 import '../theme.dart';
@@ -42,6 +43,14 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   }
 
   Future<void> _startRecording() async {
+    // Dev-only demo path: shows the same "recording" animation for a
+    // screen recording, but never touches the mic — see
+    // _stopRecordingAndSubmit and ObservationService.submitDemoLog.
+    if (DevBypass.instance.skipped) {
+      setState(() => _isHolding = true);
+      return;
+    }
+
     if (!await _recorder.hasPermission()) return;
 
     _pcmChunks.clear();
@@ -65,6 +74,11 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   }
 
   Future<void> _stopRecordingAndSubmit() async {
+    if (DevBypass.instance.skipped) {
+      await _submitDemoLog();
+      return;
+    }
+
     await _recorder.stop();
     await _pcmSubscription?.cancel();
     _pcmSubscription = null;
@@ -114,7 +128,51 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
     }
   }
 
+  // Dev-only demo path (see _startRecording): the mic never actually
+  // records here, so there's no PCM to check for silence like the real
+  // path does — go straight to "processing" for the same visual beat.
+  Future<void> _submitDemoLog() async {
+    setState(() {
+      _isHolding = false;
+      _isProcessing = true;
+    });
+
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) {
+      setState(() => _isProcessing = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a profile before logging.')),
+      );
+      return;
+    }
+
+    try {
+      await _observationService.submitDemoLog(
+        householdId: householdId,
+        careRecipientId: careRecipientId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logged — processing...')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save demo log: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   Future<void> _cancelRecording() async {
+    if (DevBypass.instance.skipped) {
+      setState(() => _isHolding = false);
+      return;
+    }
     await _recorder.cancel();
     await _pcmSubscription?.cancel();
     _pcmSubscription = null;

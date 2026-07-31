@@ -1,40 +1,47 @@
-# Fix: "Add another profile" redirects straight back to /home
+# Voice-log demo mode (for the showcase video)
 
-Branch: `fix/add-another-profile-redirect-loop`, cut from `main`.
+Branch: `feature/voice-log-demo-mode`, cut from `main`.
 
-## Bug report (from Ralph)
+## Ask
 
-"Add Another Patient is not working."
+Ralph wants to film the app for the hackathon video without relying on
+real speech-to-text picking up whatever's said on camera. "Hold to Speak"
+should just move the trend chart, no real recording.
 
-## Root cause
+## Design
 
-`router.dart`'s redirect guard treated `/patient` as onboarding-only:
+Gated behind the existing `DevBypass.instance.skipped` flag (the same one
+`AuthPage`'s "Skip (dev)" button sets) — deliberately not a separate
+always-visible demo button, since a second UI element would look odd on
+camera and the literal ask was "after I press Hold to Speak."
 
-```dart
-final onboarding = loc == '/language' || loc == '/patient';
-if (onboarding) return '/home';
-```
+- `prototype_log_page.dart`: when the flag is set, `_startRecording`
+  skips the mic entirely (just flips the recording animation state), and
+  `_stopRecordingAndSubmit` calls the new demo path instead of the real
+  upload/STT pipeline. `_cancelRecording` guarded the same way — the
+  recorder was never started, so there's nothing to cancel.
+- New server route `POST .../observations/demo-log` (`observations.js`):
+  no audio, no STT. Writes a plausible observation (sleep/appetite/mood
+  randomized 0.65–0.95, gently upward of neutral so a short clip shows a
+  visible trend) straight through the same `buildObservationDocument` +
+  daily/weekly rollup path a real voice log uses — the chart updates
+  exactly the way it would for a real log, same Firestore listener,
+  nothing chart-side needed to change.
+- Skips a real Mandarin translation call (hardcoded placeholder text
+  instead) — this observation is never meant to be read by family, and a
+  live network call is one more thing that could stall mid-recording.
 
-This runs whenever `SelectedProfile.hasProfile` is true. `ProfilePickerPage`'s
-"Add another profile" button pushes `/patient` again for exactly that case
-(a caregiver who already has a profile) — so the redirect fired before the
-page ever rendered and bounced straight back to `/home`. The button looked
-completely broken; it never even showed the form.
+## Known trade-off
 
-## Fix
-
-Dropped `/patient` from that guard, kept `/language` (re-picking a
-language once a profile exists never makes sense, and nothing revisits
-`/language` intentionally the way `/patient` gets reused for "add
-another"). Confirmed `/patient` doesn't need the guard's help: it already
-branches correctly on `editing` (create vs. edit) regardless of
-`hasProfile`, and navigates itself on success
-(`prototype_patient_page.dart`'s `context.go('/home')` /
-`context.pop()`), so nothing relied on the redirect to leave the page.
+`DevBypass.skipped` is the existing "Skip (dev)" flag from the auth
+funnel — broader than just this feature. Any dev-bypass session now gets
+fake voice logs instead of exercising the real STT pipeline. Fine for
+filming; worth a narrower flag later if someone needs to dev-bypass auth
+*and* still test real voice logging in the same session.
 
 ## Status
 
-- [x] Fixed in `router.dart`, `flutter analyze` clean, mobile suite 15/15
-- [ ] Manual verification: from an existing profile, Profiles → Add
-      another profile → form appears (not an instant bounce to /home)
+- [x] Implemented, both mobile + API sides
+- [x] Tests: `observations-demo-log.test.js` (3) — full backend suite
+      194/194, mobile suite 15/15, `flutter analyze` clean
 - [ ] PR, merge to `main`

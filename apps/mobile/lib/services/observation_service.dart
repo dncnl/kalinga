@@ -69,4 +69,27 @@ class ObservationService {
       throw Exception('Failed to start processing observation: ${processRes.body}');
     }
   }
+
+  /// Dev-only: writes a plausible-looking observation without any audio,
+  /// so the trend chart can be shown moving in a screen recording without
+  /// needing a working mic or real speech. See DevBypass — callers should
+  /// gate this behind the same dev flag, not show it to a real caregiver.
+  Future<void> submitDemoLog({
+    required String householdId,
+    required String careRecipientId,
+  }) async {
+    final token = await getIdToken();
+    final res = await http.post(
+      Uri.parse(
+        '$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId/observations/demo-log',
+      ),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to submit demo log: ${res.body}');
+    }
+  }
 }
