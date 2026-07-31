@@ -5,6 +5,7 @@ import '../services/profile_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 import '../widgets/back_button.dart';
+import '../widgets/must_remember_section.dart';
 import 'invite_sheet.dart';
 
 /// Shows the currently *selected* profile (SelectedProfile.instance) — the
@@ -56,6 +57,10 @@ class PrototypePatientDetailPage extends StatelessWidget {
                   _buildProfileBlock(recipient),
                   const SizedBox(height: 20),
                   _buildConditions(recipient),
+                  const SizedBox(height: 24),
+                  MustRememberSection(recipient: recipient),
+                  const SizedBox(height: 24),
+                  InsightsSection(careRecipientId: recipient.id),
                   const SizedBox(height: 20),
                   _buildMenuRows(context, recipient),
                   const SizedBox(height: 20),

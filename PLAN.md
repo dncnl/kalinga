@@ -51,6 +51,12 @@ the full demo path (§Definition of done below) passes end to end.
 5. `apps/api/src/lib/reminderCheckin.js` — **new lib**, the F3 question
    sets and their score mapping, plus 9 tests.
 
+6. `PATCH /households/:hid/care-recipients/:crid` — **new optional
+   `mustRemember` field** (F5), written into the same free-form
+   `careProfile` map that already holds `age` and `conditions`. Existing
+   callers that don't send it are unaffected; validated and capped
+   server-side.
+
 No existing route's shape or authorization was changed at any point.
 
 Nothing else under `apps/api` or `packages/kalinga_firestore_package` was
@@ -147,7 +153,22 @@ modified beyond the RAG system-prompt commit listed above.
         about lunch never fabricates a sleep score); 9 tests cover this.
         Voice alternative reuses the F4 pipeline. Replaced the hardcoded
         check-in page.
-  - [ ] F5 "must remember" + insights from existing rollups
+  - [x] F5 "must remember" + insights.
+        **Manual half:** allergy / directive / sensory / trigger /
+        preference items on the elder's profile, stored in the existing
+        free-form `careProfile` map (same place age and conditions already
+        live — no schema change). Human-entered only: nothing here is
+        model-generated, since a confidently-wrong DNR or allergy is the
+        most dangerous thing this app could produce. Allergies and
+        directives render with a warning colour; the rest stay calm.
+        **Auto half:** `deriveInsights()` reads the `trendSeries` the weekly
+        rollup already writes — no new analytics system. Three honesty
+        rules, each with a test: days with no observations (the rollup's
+        neutral 0.5) are skipped rather than read as average; fewer than 4
+        real days or a change under 0.15 produces nothing at all; and the
+        wording describes without diagnosing ("eating less than earlier
+        this week", never "possible dehydration"). Empty state says "not
+        enough logs yet", never "everything is fine". 8 Flutter tests.
   - [x] F6 emergency contacts + phrasebook. 119 / 110 / 1955 /
         0800-024-111 (NIA foreign-resident line), real `tel:` dialling via
         `url_launcher`. Removed the fabricated "Rosa's daughter" and

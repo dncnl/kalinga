@@ -5,12 +5,40 @@ import 'package:http/http.dart' as http;
 import '../api_config.dart';
 import 'auth_token.dart';
 
+/// F5 · One standing fact a caregiver must not have to remember unaided —
+/// an allergy, a DNR, a trigger, a preference. Human-entered only: this is
+/// safety-critical, so nothing here is ever model-generated.
+class MustRememberItem {
+  final String category;
+  final String text;
+
+  const MustRememberItem({required this.category, required this.text});
+
+  factory MustRememberItem.fromJson(Map<String, dynamic> json) => MustRememberItem(
+        category: json['category'] as String? ?? 'other',
+        text: json['text'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'category': category, 'text': text};
+}
+
+/// The categories the backend accepts (see households.js).
+const kMustRememberCategories = <String, String>{
+  'allergy': 'Allergy',
+  'directive': 'Medical directive',
+  'sensory': 'Hearing / sight',
+  'trigger': 'Trigger',
+  'preference': 'Preference',
+  'other': 'Other',
+};
+
 class CareRecipient {
   final String id;
   final String displayName;
   final int? age;
   final List<String> preferredLanguages;
   final List<String> conditions;
+  final List<MustRememberItem> mustRemember;
 
   CareRecipient({
     required this.id,
@@ -18,6 +46,7 @@ class CareRecipient {
     required this.age,
     required this.preferredLanguages,
     required this.conditions,
+    this.mustRemember = const [],
   });
 
   factory CareRecipient.fromJson(Map<String, dynamic> json) {
@@ -28,6 +57,9 @@ class CareRecipient {
       age: careProfile['age'] as int?,
       preferredLanguages: List<String>.from(json['preferredLanguages'] as List? ?? []),
       conditions: List<String>.from(careProfile['conditions'] as List? ?? []),
+      mustRemember: ((careProfile['mustRemember'] as List?) ?? const [])
+          .map((m) => MustRememberItem.fromJson(m as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -102,6 +134,29 @@ class ProfileService {
       preferredLanguages: preferredLanguages,
       conditions: conditions,
     );
+  }
+
+  /// F5 · Replaces the "must remember" list. Its own call rather than a
+  /// parameter on [updateCareRecipient] because that one is driven by the
+  /// edit form and always sends every field; the PATCH route only applies
+  /// what it's given, so sending just this leaves name/age/conditions alone.
+  Future<void> updateMustRemember(
+    String householdId,
+    String careRecipientId,
+    List<MustRememberItem> items,
+  ) async {
+    final token = await getIdToken();
+    final res = await http.patch(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'mustRemember': items.map((i) => i.toJson()).toList()}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to save must-remember items: ${res.body}');
+    }
   }
 
   Future<void> updateCareRecipient(
