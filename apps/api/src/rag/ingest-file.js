@@ -97,9 +97,12 @@ async function loadDocument() {
   return loadFromLocalFile();
 }
 
-async function ingestFile() {
-  const source = await loadDocument();
-
+// The actual ingest: persist the raw doc, then chunk + embed it. Shared by
+// the CLI entrypoint below and by routes/ragIngest.js (the internal route
+// the Storage-trigger Cloud Function calls — see functions/index.js) so
+// there's exactly one place that knows how to turn a `source` into
+// ragSources + ragChunks documents.
+async function ingestSource(source) {
   // Persisted first and separately from the chunking below: if chunking or
   // embedding fails partway, the raw document is still saved and a plain
   // re-run of ingest.js (reading from ragSources) can pick it up later
@@ -138,7 +141,23 @@ async function ingestFile() {
   });
   await bulkWriter.close();
 
-  console.log(`Ingested ${source.id}: ${chunks.length} chunks`);
+  return { sourceId: source.id, chunkCount: chunks.length };
+}
+
+// Entry point for the Storage-trigger route (routes/ragIngest.js): given a
+// bucket + object name it already has from the trigger event, load and
+// ingest that one object. Kept separate from ingestFile()/loadDocument()
+// below, which read BUCKET_NAME/OBJECT_NAME from the environment for the
+// CLI/Cloud Run Job path instead of taking explicit arguments.
+async function ingestFromGcs({ bucketName, objectName }) {
+  const source = await loadFromGcs(bucketName, objectName);
+  return ingestSource(source);
+}
+
+async function ingestFile() {
+  const source = await loadDocument();
+  const { sourceId, chunkCount } = await ingestSource(source);
+  console.log(`Ingested ${sourceId}: ${chunkCount} chunks`);
 }
 
 if (require.main === module) {
@@ -150,4 +169,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { ingestFile };
+module.exports = { ingestFile, ingestFromGcs, ingestSource };
