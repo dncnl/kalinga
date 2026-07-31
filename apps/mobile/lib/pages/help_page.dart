@@ -74,12 +74,145 @@ class HelpPage extends StatelessWidget {
             const SizedBox(height: 6),
             Text('One tap calls. No menus.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
-            const SizedBox(height: 20),
-
-            ..._contacts.map((c) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ContactCard(contact: c),
+            Row(children: [
+              Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'LIFE-THREATENING EMERGENCY',
+                style: AppTextStyles.bodyMedium(fontSize: 11)
+                    .copyWith(color: AppColors.primary, letterSpacing: 0.8),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            ..._contacts.where((c) => c.urgent).map((c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Semantics(
+                    label: 'Call ${c.name}, ${c.displayNumber}',
+                    button: true,
+                    child: InkWell(
+                      onTap: () => launchUrl(Uri.parse('tel:${c.number}')),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.phone_rounded, color: Colors.white, size: 28),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.displayNumber,
+                                  style: AppTextStyles.heading(fontSize: 40)
+                                      .copyWith(color: Colors.white, height: 1.1),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${c.name} · ${c.nameZh}',
+                                  style: AppTextStyles.body(fontSize: 14)
+                                      .copyWith(color: Colors.white.withValues(alpha: 0.9)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: Text(
+                              'Call now',
+                              style: AppTextStyles.bodyMedium(fontSize: 13)
+                                  .copyWith(color: Colors.white),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
                 )),
+            const SizedBox(height: 16),
+            Text(
+              'Support & advice',
+              style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            Builder(builder: (context) {
+              final support = _contacts.where((c) => !c.urgent).toList();
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.borderColor),
+                ),
+                child: Column(children: [
+                  for (int i = 0; i < support.length; i++) ...[
+                    if (i != 0) Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
+                    InkWell(
+                      onTap: () => launchUrl(Uri.parse('tel:${support[i].number}')),
+                      borderRadius: i == 0
+                          ? const BorderRadius.vertical(top: Radius.circular(20))
+                          : i == support.length - 1
+                              ? const BorderRadius.vertical(bottom: Radius.circular(20))
+                              : BorderRadius.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.phone_outlined, size: 18, color: AppColors.mutedText),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${support[i].name} · ${support[i].nameZh}',
+                                  style: AppTextStyles.bodyMedium(fontSize: 14)
+                                      .copyWith(color: Colors.black87),
+                                ),
+                                Text(
+                                  support[i].displayNumber,
+                                  style: AppTextStyles.body(fontSize: 12)
+                                      .copyWith(color: AppColors.mutedText),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded, color: AppColors.mutedText),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ]),
+              );
+            }),
 
             const SizedBox(height: 12),
             Text(
@@ -264,51 +397,6 @@ const _hokkienPhrases = [
 ];
 
 // ── Widgets ─────────────────────────────────────────────────────────────────
-
-class _ContactCard extends StatelessWidget {
-  final _Contact contact;
-  const _ContactCard({required this.contact});
-
-  Future<void> _call(BuildContext context) async {
-    final uri = Uri(scheme: 'tel', path: contact.number);
-    final launched = await launchUrl(uri);
-    if (!launched && context.mounted) {
-      // Web/desktop, or a device with no dialler — show the number so it can
-      // still be dialled by hand rather than failing silently.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Dial ${contact.displayNumber} on your phone.')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = contact.urgent ? HelpPage._red : Colors.black87;
-    return GestureDetector(
-      onTap: () => _call(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
-        child: Row(children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-            child: const Icon(Icons.phone_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(contact.displayNumber, style: AppTextStyles.bodyMedium(fontSize: 20).copyWith(color: Colors.white)),
-            Text('${contact.name} · ${contact.nameZh}',
-                style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)),
-            Text(contact.subtitle,
-                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.white.withValues(alpha: 0.75))),
-          ])),
-          Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.7), size: 22),
-        ]),
-      ),
-    );
-  }
-}
 
 class _PhraseCard extends StatelessWidget {
   final _Phrase phrase;

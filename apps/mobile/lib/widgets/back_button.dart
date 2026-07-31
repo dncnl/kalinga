@@ -8,18 +8,25 @@ class AppBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: IconButton(
-        onPressed: () => Navigator.of(context).maybePop(),
-        icon: const Icon(Icons.arrow_back_rounded, size: 20),
-        color: Colors.black87,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.white,
-          side: BorderSide(color: Colors.grey.shade300),
-          shape: const CircleBorder(),
+    return Semantics(
+      label: 'Go back',
+      button: true,
+      child: Tooltip(
+        message: 'Go back',
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            color: Colors.black87,
+            padding: EdgeInsets.zero,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white,
+              side: BorderSide(color: Colors.grey.shade300),
+              shape: const CircleBorder(),
+            ),
+          ),
         ),
       ),
     );

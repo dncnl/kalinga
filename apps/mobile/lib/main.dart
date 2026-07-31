@@ -60,6 +60,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Kalinga',
+      debugShowCheckedModeBanner: false,
       theme: appTheme,
       routerConfig: router,
     );

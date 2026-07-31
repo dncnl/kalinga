@@ -275,16 +275,25 @@ class _AuthPageState extends State<AuthPage> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   isRegister ? 'Save this somewhere safe — we can\'t reset it for you.' : 'At least 6 characters.',
-                  style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.mutedText),
                 ),
               ),
 
               if (_error != null) ...[
                 const SizedBox(height: 14),
-                Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.body(fontSize: 13).copyWith(color: _red),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: _red, size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87),
+                      ),
+                    ),
+                  ],
                 ),
               ],
               if (_error != null && widget.asFamilyMember) ...[
@@ -437,7 +446,7 @@ class _AuthField extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2BBFB3), width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF00796B), width: 1.5)),
       ),
     );
   }

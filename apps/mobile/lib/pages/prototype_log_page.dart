@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:record/record.dart';
 
 import '../state/selected_profile.dart';
@@ -11,6 +10,8 @@ import '../services/observation_service.dart';
 import '../theme.dart';
 import '../wav.dart';
 import '../week_key.dart';
+import '../widgets/app_header.dart';
+import '../widgets/kalinga_bottom_nav.dart';
 
 const _sampleRate = 16000;
 const _numChannels = 1;
@@ -24,7 +25,7 @@ class PrototypeLogPage extends StatefulWidget {
 class _PrototypeLogPageState extends State<PrototypeLogPage> {
   static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
-  static const _amber = Color(0xFFFBBF24);
+  static const _amber = AppColors.amber;
   static const _red = Color(0xFFEF3E23);
   bool _isHolding = false;
   bool _isProcessing = false;
@@ -104,10 +105,10 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Logged — processing...')),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save voice log: $e')),
+        const SnackBar(content: Text("We couldn't save your voice log. Check your connection and try again.")),
       );
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -158,7 +159,7 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 16),
-            const _Header(),
+            const AppPageHeader(),
             const SizedBox(height: 28),
             Text('How did $name sleep,\neat and feel today?',
                 style: AppTextStyles.heading(fontSize: 26).copyWith(color: Colors.black)),
@@ -166,45 +167,94 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             Text('Speak in your own language. One minute\nis enough.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: _teal, height: 1.5)),
             const SizedBox(height: 32),
-            Center(child: Column(children: [
-              GestureDetector(
-                onLongPressStart: _isProcessing ? null : (_) => _startRecording(),
-                onLongPressEnd: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
-                onLongPressCancel: _isProcessing ? null : () => _cancelRecording(),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: _isHolding ? 88 : 80, height: _isHolding ? 88 : 80,
-                  decoration: BoxDecoration(
-                    color: _isProcessing
-                        ? Colors.grey.shade400
-                        : _isHolding
-                            ? _red
-                            : _amber,
-                    shape: BoxShape.circle,
-                    boxShadow: _isHolding
-                        ? [BoxShadow(color: _red.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)]
-                        : [],
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.borderColor),
+              ),
+              child: Column(children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (_isHolding)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          color: _amber.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    GestureDetector(
+                      onLongPressStart: _isProcessing ? null : (_) => _startRecording(),
+                      onLongPressEnd: _isProcessing ? null : (_) => _stopRecordingAndSubmit(),
+                      onLongPressCancel: _isProcessing ? null : () => _cancelRecording(),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: _isHolding ? 120 : 112,
+                        height: _isHolding ? 120 : 112,
+                        decoration: BoxDecoration(
+                          color: _isProcessing
+                              ? Colors.grey.shade400
+                              : _isHolding
+                                  ? _red
+                                  : _amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isHolding ? _red : _amber).withValues(alpha: 0.35),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: _isProcessing
+                            ? const Padding(
+                                padding: EdgeInsets.all(32),
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                              )
+                            : const Icon(Icons.mic_rounded, color: Colors.white, size: 44),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _isProcessing ? 'Saving...' : _isHolding ? 'Listening…' : 'Hold to speak',
+                  style: AppTextStyles.bodyMedium(fontSize: 16).copyWith(
+                    color: _isHolding ? _red : Colors.black87,
                   ),
-                  child: _isProcessing
-                      ? const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                        )
-                      : const Icon(Icons.mic_rounded, color: Colors.white, size: 36),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _isProcessing ? 'Saving...' : _isHolding ? 'Recording...' : 'Hold to speak',
-                style: AppTextStyles.body(fontSize: 13).copyWith(
-                  color: _isHolding ? _red : Colors.grey.shade600,
-                  fontWeight: _isHolding ? FontWeight.w600 : FontWeight.normal,
+                const SizedBox(height: 4),
+                Text(
+                  _isProcessing
+                      ? 'Saving your log…'
+                      : _isHolding
+                          ? 'Release when you finish'
+                          : 'e.g. "She ate well but seemed anxious after lunch"',
+                  style: AppTextStyles.body(fontSize: 12).copyWith(color: AppColors.mutedText),
                 ),
-              ),
-            ])),
+              ]),
+            ),
             const SizedBox(height: 32),
-            Text('LAST 7 DAYS', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
-            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'How the week looked',
+                  style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(color: Colors.black87),
+                ),
+                Text(
+                  'Last 7 days',
+                  style: AppTextStyles.body(fontSize: 12).copyWith(color: AppColors.mutedText),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: _weeklySummaryStream,
               builder: (context, snapshot) {
@@ -214,171 +264,148 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
                 final foodData = _series(trendSeries, 'food');
                 final moodData = _series(trendSeries, 'mood');
 
-                // Week series is anchored to Sunday (index 0). Today's index is
-                // how many days since the most recent Sunday (Sun=0, Mon=1 … Sat=6).
-                // Dart weekday: Mon=1…Sun=7 → Sun%7==0, others match JS getUTCDay.
                 final todayIndex = (DateTime.now().toUtc().weekday % 7)
                     .clamp(0, sleepData.length - 1);
 
-                return Column(children: [
-                  _ChartRow(
+                final metrics = [
+                  (
                     label: 'Sleep',
-                    unit: 'quality',
-                    value: '${(sleepData[todayIndex] * 100).round()}%',
+                    icon: Icons.bedtime_outlined,
                     data: sleepData,
-                    color: _amber,
-                    todayIndex: todayIndex,
                   ),
-                  const SizedBox(height: 14),
-                  _ChartRow(
-                    label: 'Food\neaten',
-                    unit: 'of usual',
-                    value: '${(foodData[todayIndex] * 100).round()}%',
+                  (
+                    label: 'Food',
+                    icon: Icons.restaurant_outlined,
                     data: foodData,
-                    color: _teal,
-                    todayIndex: todayIndex,
                   ),
-                  const SizedBox(height: 14),
-                  _ChartRow(
+                  (
                     label: 'Mood',
-                    unit: 'score',
-                    value: '${(moodData[todayIndex] * 100).round()}%',
+                    icon: Icons.sentiment_satisfied_outlined,
                     data: moodData,
-                    color: _teal,
-                    todayIndex: todayIndex,
                   ),
-                ]);
+                ];
+
+                final dayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
+                  child: Column(
+                    children: [
+                      for (int m = 0; m < metrics.length; m++) ...[
+                        if (m > 0) const SizedBox(height: 20),
+                        Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(metrics[m].icon, size: 16, color: AppColors.mutedText),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      metrics[m].label,
+                                      style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  'Today: ${(metrics[m].data[todayIndex] * 100).round()}%',
+                                  style: AppTextStyles.body(fontSize: 12).copyWith(color: AppColors.mutedText),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: List.generate(7, (i) {
+                                final isToday = i == todayIndex;
+                                final val = metrics[m].data[i];
+                                final (color, fraction) = val >= 0.70
+                                    ? (_teal, 1.0)
+                                    : val >= 0.40
+                                        ? (_amber, 0.62)
+                                        : (_red, 0.32);
+                                final barColor = isToday ? color : color.withValues(alpha: 0.45);
+                                return Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    child: Column(
+                                      children: [
+                                        SizedBox(
+                                          height: 48,
+                                          child: Align(
+                                            alignment: Alignment.bottomCenter,
+                                            child: Container(
+                                              height: 48 * fraction,
+                                              decoration: BoxDecoration(
+                                                color: barColor,
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: isToday
+                                                    ? Border.all(color: Colors.black.withValues(alpha: 0.15), width: 1.5)
+                                                    : null,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          dayInitials[i],
+                                          style: AppTextStyles.body(fontSize: 10).copyWith(
+                                            color: isToday ? Colors.black87 : AppColors.mutedText,
+                                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      Divider(height: 1, color: Colors.grey.shade200),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (final entry in [
+                            ('Good', _teal),
+                            ('Fair', _amber),
+                            ('Poor', _red),
+                          ]) ...[
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(color: entry.$2, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              entry.$1,
+                              style: AppTextStyles.body(fontSize: 11).copyWith(color: AppColors.mutedText),
+                            ),
+                            if (entry.$1 != 'Poor') const SizedBox(width: 16),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
             const SizedBox(height: 32),
           ]),
         ),
       ),
-      bottomNavigationBar: const _BottomNav(activeIndex: 2),
+      bottomNavigationBar: const KalingaBottomNav(activeIndex: 2),
     );
       },
-    );
-  }
-}
-
-class _ChartRow extends StatelessWidget {
-  final String label, unit, value;
-  final List<double> data;
-  final Color color;
-  final int todayIndex;
-  const _ChartRow({required this.label, required this.unit, required this.value, required this.data, required this.color, required this.todayIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      SizedBox(width: 52, child: Text(label, style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade600))),
-      Expanded(child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(data.length, (i) {
-          final isToday = i == todayIndex;
-          return Expanded(child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Container(
-              height: 40 * data[i],
-              decoration: BoxDecoration(
-                color: isToday ? color : color.withValues(alpha: 0.25 + i * 0.05),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ));
-        }),
-      )),
-      const SizedBox(width: 8),
-      SizedBox(width: 44, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value, style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-        Text(unit, style: AppTextStyles.body(fontSize: 10).copyWith(color: Colors.grey.shade500)),
-      ])),
-    ]);
-  }
-}
-
-// ── Shared widgets ────────────────────────────────────────────────────────────
-
-class _Header extends StatelessWidget {
-  const _Header();
-  static const _teal = Color(0xFF2BBFB3);
-
-  @override
-  Widget build(BuildContext context) {
-    final recipient = SelectedProfile.instance.careRecipient;
-    return Row(children: [
-      GestureDetector(
-        onTap: () => context.push('/profiles'),
-        child: Container(width: 38, height: 38,
-          decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: GestureDetector(
-        onTap: () => context.push('/profiles'),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            if (recipient != null)
-              Text(
-                [
-                  if (recipient.age != null) '${recipient.age}',
-                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
-                ].join(' · '),
-                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
-              ),
-          ]),
-          const SizedBox(width: 4),
-          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),
-        ]),
-      )),
-      IconButton(onPressed: () => context.push('/activity'), icon: Icon(Icons.notifications_none_rounded, color: Colors.grey.shade700, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-      const SizedBox(width: 16),
-      IconButton(onPressed: () => context.push('/settings'), icon: Icon(Icons.settings_outlined, color: Colors.grey.shade700, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-    ]);
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  final int activeIndex;
-  const _BottomNav({required this.activeIndex});
-  static const _red = Color(0xFFEF3E23);
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: activeIndex,
-      onTap: (i) {
-        switch (i) {
-          case 0:
-            context.go('/home');
-            break;
-          case 1:
-            context.go('/ask');
-            break;
-          case 2:
-            context.go('/log');
-            break;
-          case 3:
-            context.go('/meds');
-            break;
-          case 4:
-            context.go('/help');
-            break;
-        }
-      },
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: _red, unselectedItemColor: Colors.grey.shade400,
-      selectedLabelStyle: AppTextStyles.bodyMedium(fontSize: 11),
-      unselectedLabelStyle: AppTextStyles.body(fontSize: 11),
-      elevation: 8,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Today'),
-        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Ask'),
-        BottomNavigationBarItem(icon: Icon(Icons.mic_none_rounded), label: 'Log'),
-        BottomNavigationBarItem(icon: Icon(Icons.medication_outlined), label: 'Meds'),
-        BottomNavigationBarItem(icon: Icon(Icons.help_outline_rounded), label: 'Help'),
-      ],
     );
   }
 }

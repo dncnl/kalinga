@@ -92,6 +92,11 @@ class _AskPageState extends State<AskPage> {
               ),
             ),
             const SizedBox(height: 20),
+            Text(
+              'Try asking',
+              style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: AppColors.mutedText),
+            ),
+            const SizedBox(height: 8),
             ..._prompts.map((p) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: GestureDetector(

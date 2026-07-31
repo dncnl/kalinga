@@ -75,14 +75,17 @@ class _WelcomePageState extends State<WelcomePage> {
                 'assets/branding/kalinga-logo-app.png',
                 width: 96,
                 height: 96,
+                semanticLabel: 'Kalinga logo',
               ),
 
               const SizedBox(height: 20),
 
               // ── Wordmark ──────────────────────────────────────────────
-              Image.asset(
-                'assets/branding/kalinga-logo-text.png',
-                height: 40,
+              ExcludeSemantics(
+                child: Image.asset(
+                  'assets/branding/kalinga-logo-text.png',
+                  height: 40,
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -91,7 +94,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 _tagline,
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 14).copyWith(
-                  color: Colors.grey.shade600,
+                  color: AppColors.secondaryText,
                   height: 1.5,
                 ),
               ),

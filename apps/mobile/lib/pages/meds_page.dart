@@ -258,22 +258,39 @@ class _MedsPageState extends State<MedsPage> {
                 onTap: _scanning ? null : _scanLabel,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 28),
+                  padding: const EdgeInsets.symmetric(vertical: 36),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.teal.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.teal.withValues(alpha: 0.5),
+                      width: 2,
+                      strokeAlign: BorderSide.strokeAlignInside,
+                    ),
                   ),
                   child: Column(children: [
-                    _scanning
-                        ? const SizedBox(width: 32, height: 32, child: CircularProgressIndicator(strokeWidth: 3))
-                        : Icon(Icons.camera_alt_outlined, size: 32, color: Colors.grey.shade500),
-                    const SizedBox(height: 8),
-                    Text(_scanning ? 'Reading label...' : 'Scan label',
-                        style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppColors.teal,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.teal.withValues(alpha: 0.35),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.camera_alt_outlined, size: 30, color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Scan label',
+                        style: AppTextStyles.bodyMedium(fontSize: 18).copyWith(color: Colors.black87)),
                     const SizedBox(height: 4),
                     Text('Hold the box steady in good light',
-                        style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+                        style: AppTextStyles.body(fontSize: 13).copyWith(color: AppColors.mutedText)),
                   ]),
                 ),
               ),

@@ -7,6 +7,8 @@ import '../services/medication_service.dart';
 import '../services/reminder_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/app_header.dart';
+import '../widgets/kalinga_bottom_nav.dart';
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,6 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
     BoxShadow(color: Color(0x0F000000), blurRadius: 16, offset: Offset(0, 4)),
   ];
 
-  int _navIndex = 0;
   final _medicationService = const MedicationService();
   final _reminderService = const ReminderService();
 
@@ -120,9 +121,9 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
         _reminderEvents = reminders;
         _loadedForRecipientId = requestedRecipientId;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted || SelectedProfile.instance.careRecipient?.id != requestedRecipientId) return;
-      setState(() => _scheduleError = e.toString());
+      setState(() => _scheduleError = "We couldn't load today's schedule. Check your connection and try again.");
     } finally {
       if (mounted && SelectedProfile.instance.careRecipient?.id == requestedRecipientId) {
         setState(() => _loadingSchedule = false);
@@ -156,7 +157,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
-                _buildHeader(context),
+                const AppPageHeader(),
                 const SizedBox(height: 20),
                 _buildGreetingCard(),
                 const SizedBox(height: 16),
@@ -174,80 +175,11 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const KalingaBottomNav(activeIndex: 0),
     );
   }
 
-  // ── Header ─────────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(BuildContext context) {
-    return ListenableBuilder(
-      listenable: SelectedProfile.instance,
-      builder: (context, _) {
-        final recipient = SelectedProfile.instance.careRecipient;
-        return Row(
-          children: [
-            GestureDetector(
-              onTap: () => context.push('/profiles'),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: const BoxDecoration(color: Color(0xFF2BBFB3), shape: BoxShape.circle),
-                child: Center(
-                  child: Text(
-                    recipient?.initials ?? '?',
-                    style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => context.push('/profiles'),
-                child: Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          recipient?.displayName ?? 'Add a profile',
-                          style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87),
-                        ),
-                        if (recipient != null)
-                          Text(
-                            [
-                              if (recipient.age != null) '${recipient.age}',
-                              if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
-                            ].join(' · '),
-                            style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),
-                  ],
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: () => context.push('/activity'),
-              icon: Icon(Icons.notifications_none_rounded, color: Colors.grey.shade700, size: 24),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 16),
-            IconButton(
-              onPressed: () => context.push('/settings'),
-              icon: Icon(Icons.settings_outlined, color: Colors.grey.shade700, size: 24),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   // ── Greeting card ──────────────────────────────────────────────────────────
 
@@ -322,7 +254,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
             children: [
               Text(
                 _todayLabel(),
-                style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade600, letterSpacing: 0.5),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.mutedText, letterSpacing: 0.5),
               ),
               const SizedBox(height: 6),
               Text(
@@ -380,12 +312,12 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
         icon: const Icon(Icons.mic_none_rounded, size: 20),
         label: Text(
           'Start daily log',
-          style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(color: Colors.white),
+          style: AppTextStyles.bodyMedium(fontSize: 18).copyWith(color: Colors.white),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _red,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: const EdgeInsets.symmetric(vertical: 22),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
           elevation: 2,
           shadowColor: _red.withValues(alpha: 0.35),
@@ -395,11 +327,6 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   }
 
   // ── Symptom check-in (F1) ──────────────────────────────────────────────────
-  //
-  // Its own full-width button rather than a fifth quick-action icon: this is
-  // the path someone takes when they think something is wrong right now, and
-  // it should be findable without reading a row of small labels. Calm styling
-  // on purpose — an alarming red button invites panic taps.
 
   Widget _buildSymptomCheckButton() {
     return SizedBox(
@@ -409,11 +336,11 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
         icon: const Icon(Icons.health_and_safety_outlined, size: 20),
         label: Text(
           'Something is wrong',
-          style: AppTextStyles.bodyMedium(fontSize: 16).copyWith(color: Colors.black87),
+          style: AppTextStyles.bodyMedium(fontSize: 18).copyWith(color: Colors.black87),
         ),
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.black87,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 22),
           side: BorderSide(color: Colors.grey.shade400, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
         ),
@@ -430,6 +357,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       const _QuickAction(
         icon: Icons.chat_bubble_outline_rounded,
         label: 'Ask',
+        subtitle: 'In your own language',
         bg: Color(0xFFFFD5CF),
         iconColor: Color(0xFFEF3E23),
         route: '/ask',
@@ -437,6 +365,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       _QuickAction(
         icon: Icons.medication_outlined,
         label: 'Meds',
+        subtitle: 'Photograph the label',
         bg: const Color(0xFFD0EFFE),
         iconColor: const Color(0xFF2BBFB3),
         badge: dueCount > 0 ? '$dueCount' : null,
@@ -445,6 +374,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       _QuickAction(
         icon: Icons.schedule_rounded,
         label: 'Schedules',
+        subtitle: 'View today\'s plan',
         bg: const Color(0xFFFFF3C4),
         iconColor: _amber,
         route: '/patients/$recipientId/schedules',
@@ -452,6 +382,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       const _QuickAction(
         icon: Icons.help_outline_rounded,
         label: 'Help',
+        subtitle: 'Emergency numbers',
         bg: Color(0xFFEEEEEE),
         iconColor: Color(0xFF555555),
         route: '/help',
@@ -463,21 +394,29 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       children: [
         Text(
           'QUICK ACTIONS',
-          style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.mutedText, letterSpacing: 0.8),
         ),
         const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: _cardShadow,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: actions.map((a) => _QuickActionTile(action: a)).toList(),
-          ),
+        Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _QuickActionCard(action: actions[0])),
+                const SizedBox(width: 12),
+                Expanded(child: _QuickActionCard(action: actions[1])),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _QuickActionCard(action: actions[2])),
+                const SizedBox(width: 12),
+                Expanded(child: _QuickActionCard(action: actions[3])),
+              ],
+            ),
+          ],
         ),
       ],
     );
@@ -499,11 +438,11 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text("TODAY'S REMINDERS",
-            style: AppTextStyles.bodyMedium(fontSize: 11)
-                .copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
-        GestureDetector(
-          onTap: () => context.push('/patients/$recipientId/schedules'),
-          child: Text('Manage', style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(color: _teal)),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: AppColors.mutedText, letterSpacing: 0.8)),
+        TextButton(
+          onPressed: () => context.push('/patients/$recipientId/schedules'),
+          child: Text('Manage', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: _teal)),
         ),
       ]),
       const SizedBox(height: 12),
@@ -532,13 +471,13 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
           children: [
             Text(
               "TODAY'S MEDICINE SCHEDULE",
-              style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.mutedText, letterSpacing: 0.8),
             ),
-            GestureDetector(
-              onTap: () => context.push('/meds'),
+            TextButton(
+              onPressed: () => context.push('/meds'),
               child: Text(
                 'See all',
-                style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(color: _teal),
+                style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: _teal),
               ),
             ),
           ],
@@ -557,7 +496,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
             padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(children: [
@@ -591,49 +530,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
     );
   }
 
-  // ── Bottom nav ─────────────────────────────────────────────────────────────
 
-  Widget _buildBottomNav() {
-    const items = [
-      BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Today'),
-      BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Ask'),
-      BottomNavigationBarItem(icon: Icon(Icons.mic_none_rounded), label: 'Log'),
-      BottomNavigationBarItem(icon: Icon(Icons.medication_outlined), label: 'Meds'),
-      BottomNavigationBarItem(icon: Icon(Icons.help_outline_rounded), label: 'Help'),
-    ];
-
-    return BottomNavigationBar(
-      currentIndex: _navIndex,
-      onTap: (i) {
-        setState(() => _navIndex = i);
-        switch (i) {
-          case 0:
-            context.go('/home');
-            break;
-          case 1:
-            context.go('/ask');
-            break;
-          case 2:
-            context.go('/log');
-            break;
-          case 3:
-            context.go('/meds');
-            break;
-          case 4:
-            context.go('/help');
-            break;
-        }
-      },
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Colors.white,
-      selectedItemColor: _red,
-      unselectedItemColor: Colors.grey.shade400,
-      selectedLabelStyle: AppTextStyles.bodyMedium(fontSize: 11),
-      unselectedLabelStyle: AppTextStyles.body(fontSize: 11),
-      elevation: 8,
-      items: items,
-    );
-  }
 }
 
 // ── Quick action tile ─────────────────────────────────────────────────────────
@@ -641,6 +538,7 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
 class _QuickAction {
   final IconData icon;
   final String label;
+  final String subtitle;
   final Color bg;
   final Color iconColor;
   final String? badge;
@@ -649,6 +547,7 @@ class _QuickAction {
   const _QuickAction({
     required this.icon,
     required this.label,
+    required this.subtitle,
     required this.bg,
     required this.iconColor,
     required this.route,
@@ -656,46 +555,70 @@ class _QuickAction {
   });
 }
 
-class _QuickActionTile extends StatelessWidget {
+class _QuickActionCard extends StatelessWidget {
   final _QuickAction action;
-  const _QuickActionTile({required this.action});
+  const _QuickActionCard({required this.action});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push(action.route),
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => context.push(action.route),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(color: action.bg, borderRadius: BorderRadius.circular(16)),
-                child: Icon(action.icon, color: action.iconColor, size: 26),
-              ),
-              if (action.badge != null)
-                Positioned(
-                  top: -6,
-                  right: -6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(color: Color(0xFFEF3E23), shape: BoxShape.circle),
-                    child: Center(
-                      child: Text(
-                        action.badge!,
-                        style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.white),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: action.bg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(action.icon, color: action.iconColor, size: 22),
+                  ),
+                  if (action.badge != null)
+                    Positioned(
+                      top: -6,
+                      right: -6,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(color: Color(0xFFEF3E23), shape: BoxShape.circle),
+                        child: Center(
+                          child: Text(
+                            action.badge!,
+                            style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.white),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                action.label,
+                style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                action.subtitle,
+                style: AppTextStyles.body(fontSize: 12).copyWith(color: AppColors.mutedText),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(action.label, style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade700)),
-        ],
+        ),
       ),
     );
   }

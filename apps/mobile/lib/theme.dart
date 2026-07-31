@@ -7,6 +7,12 @@ class AppColors {
   static const black = Color(0xFF000000);
   static const background = Color(0xFFFFFFFF);
   static const teal = Color(0xFF2BBFB3);
+
+  // Body / supporting text — fixes contrast failures on small text
+  static const secondaryText = Color(0xFF616161);
+  static const mutedText = Color(0xFF6B7280);
+  static const borderColor = Color(0xFFD1D5DB);
+  static const amber = Color(0xFFD97706);
 }
 
 class AppTextStyles {
@@ -29,7 +35,10 @@ class AppTextStyles {
 }
 
 final appTheme = ThemeData(
-  colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: AppColors.primary,
+    error: AppColors.primary,
+  ),
   textTheme: TextTheme(
     displayLarge: AppTextStyles.heading(fontSize: 57),
     displayMedium: AppTextStyles.heading(fontSize: 45),
@@ -38,5 +47,7 @@ final appTheme = ThemeData(
     titleLarge: AppTextStyles.bodyMedium(fontSize: 22),
     bodyLarge: AppTextStyles.body(fontSize: 16),
     bodyMedium: AppTextStyles.body(fontSize: 14),
+    bodySmall: AppTextStyles.body(fontSize: 13),
+    labelSmall: AppTextStyles.bodyMedium(fontSize: 12),
   ),
 );
