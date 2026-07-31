@@ -3,12 +3,17 @@ const { FieldValue } = require('firebase-admin/firestore');
 // Assembles an ObservationDocument (see kalinga-firestore-schema.json) from
 // the pipeline's outputs. Pure aside from FieldValue sentinels, so it's
 // cheap to unit test without touching Firestore.
-function buildObservationDocument({ uid, locale, transcript, translatedText, extraction }) {
+//
+// [inputMode] defaults to 'voice' (the voice-log pipeline, which is every
+// caller that predates the symptom check-in). The structured check-in
+// passes 'structuredForm' — an inputMode the schema already declares, so
+// this is a new value for an existing field rather than a schema change.
+function buildObservationDocument({ uid, locale, transcript, translatedText, extraction, inputMode = 'voice' }) {
   const now = FieldValue.serverTimestamp();
 
   return {
     authorUid: uid,
-    inputMode: 'voice',
+    inputMode,
     originalLanguage: locale,
     originalText: transcript,
     originalAudioAssetId: null,

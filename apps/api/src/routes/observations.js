@@ -8,6 +8,12 @@ const { STT_LANGUAGE_CODES } = require('../lib/transcribe');
 // processObservationJob.processObservationJob directly.
 const processObservationJobLib = require('../lib/processObservationJob');
 const { timestampId } = require('../lib/readableId');
+const { translateToMandarin } = require('../lib/translate');
+const { buildObservationDocument } = require('../lib/buildObservationDocument');
+const symptomTriage = require('../lib/symptomTriage');
+const rollupDailySummary = require('../lib/rollupDailySummary');
+const rollupWeeklySummary = require('../lib/rollupWeeklySummary');
+const { currentWeekKey, currentWeekStartUtc, dateKeyOf } = require('../lib/weekKey');
 
 const router = Router();
 
@@ -133,6 +139,123 @@ router.post(
       // them to the doc — this is a last-resort net for a bug in that
       // catch handling itself, so a failure can never be fully silent.
       console.error(`unhandled error from processObservationJob (${observationRef.path}):`, err);
+    });
+  },
+);
+
+// F1 · Structured symptom check-in.
+//
+// Additive endpoint. The voice pipeline above cannot serve this: it starts
+// from an audio upload, and a tap-based triage has no audio. Everything
+// downstream is reused unchanged — same observations collection, same
+// document builder, same daily/weekly rollups, so a check-in shows up in
+// the family viewer and the trend charts exactly like a voice log.
+//
+// Note what is NOT here: no LLM. Urgency comes from lib/symptomTriage.js,
+// which is a fixed table (see the reasoning in that file). The client sends
+// which symptom and which yes/no answers were tapped; the server recomputes
+// the assessment itself rather than trusting a client-sent urgency, since a
+// stale or tampered client must not be able to downgrade an emergency.
+router.post(
+  '/households/:householdId/care-recipients/:careRecipientId/observations/symptom-check',
+  requireAuth,
+  async (req, res) => {
+    const { householdId, careRecipientId } = req.params;
+    const { symptomKey, answers, note, locale } = req.body || {};
+
+    if (!symptomTriage.SYMPTOMS[symptomKey]) {
+      return res.status(400).json({
+        error: `Unknown symptomKey. Allowed: ${Object.keys(symptomTriage.SYMPTOMS).join(', ')}`,
+      });
+    }
+    if (!locale) {
+      return res.status(400).json({ error: 'locale is required' });
+    }
+
+    const assigned = await isCaregiverAssigned({ householdId, careRecipientId, uid: req.uid });
+    if (!assigned) {
+      return res.status(403).json({ error: 'Not an active caregiver for this care recipient' });
+    }
+
+    const assessment = symptomTriage.assessSymptom({ symptomKey, answers });
+    const summaryText = symptomTriage.buildSummaryText({ symptomKey, answers, note });
+
+    // The whole point of the feature for the family: they read it in
+    // Mandarin. If translation fails the check-in must still be recorded —
+    // losing an urgent observation because a translation API blipped would
+    // be the worst possible trade.
+    let translatedText = null;
+    let translationError = null;
+    try {
+      ({ text: translatedText } = await translateToMandarin({
+        text: summaryText,
+        sourceLocale: locale,
+        projectId: firebase.projectId,
+      }));
+    } catch (err) {
+      translationError = err.message;
+      console.error('symptom-check: translation failed, storing untranslated:', err);
+    }
+
+    const observationId = timestampId();
+    const observationRef = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`,
+    );
+
+    const observationDoc = buildObservationDocument({
+      uid: req.uid,
+      locale,
+      transcript: summaryText,
+      translatedText: translatedText ?? summaryText,
+      inputMode: 'structuredForm',
+      extraction: {
+        categories: [assessment.category],
+        comparisonToUsual: 'worse',
+        structuredObservation: {
+          summary: summaryText,
+          symptomKey,
+          urgency: assessment.urgency,
+          // Scores stay neutral rather than guessed: this check-in asked
+          // about one symptom, so claiming to know how she slept would
+          // pollute the trend chart with invented data. The exception is
+          // the one the caregiver actually answered about.
+          sleepQuality: 0.5,
+          appetiteLevel: symptomKey === 'notEating' ? 0.1 : 0.5,
+          moodScore: 0.5,
+        },
+        safetyAssessment: {
+          concernLevel: assessment.concernLevel,
+          concerns: assessment.concerns,
+          recommendFollowUp: assessment.recommendFollowUp,
+        },
+      },
+    });
+    if (translationError) observationDoc.processingError = translationError;
+
+    await observationRef.set(observationDoc);
+
+    await Promise.all([
+      rollupDailySummary.computeAndSaveDailySummary({
+        householdId,
+        careRecipientId,
+        dateKey: dateKeyOf(new Date()),
+      }),
+      rollupWeeklySummary.computeAndSaveWeeklySummary({
+        householdId,
+        careRecipientId,
+        weekKey: currentWeekKey(),
+        periodStart: currentWeekStartUtc().toISOString(),
+      }),
+    ]);
+
+    res.json({
+      observationId,
+      urgency: assessment.urgency,
+      concernLevel: assessment.concernLevel,
+      concerns: assessment.concerns,
+      action: symptomTriage.ACTION_TEXT[assessment.urgency],
+      summaryText,
+      translatedText,
     });
   },
 );

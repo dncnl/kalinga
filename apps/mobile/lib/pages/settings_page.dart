@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../state/selected_profile.dart';
+import '../state/session_role.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -10,7 +13,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
 
@@ -23,6 +26,29 @@ class _SettingsPageState extends State<SettingsPage> {
 
   static const _languages = ['Tagalog', 'Bisaya', 'Bahasa Indonesia', 'Vietnamese'];
   static const _familyLanguages = ['Mandarin (Traditional)', 'Mandarin (Simplified)', 'English'];
+
+  bool _signingOut = false;
+
+  Future<void> _signOut() async {
+    setState(() => _signingOut = true);
+    try {
+      // Order matters: clear local state before signing out so no widget
+      // rebuild between the two reads a stale household/recipient under the
+      // next account. §auth-gate requires a later login as a different
+      // account to show none of this one's data.
+      await SelectedProfile.instance.reset();
+      await SessionRole.instance.clear();
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.go('/');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _signingOut = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not sign out. Try again.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +128,26 @@ class _SettingsPageState extends State<SettingsPage> {
               value: _biggerText,
               onChanged: (v) => setState(() => _biggerText = v),
             ),
+            const SizedBox(height: 24),
+
+            // Sign out
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                onTap: _signingOut ? null : _signOut,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.logout_rounded, color: _red, size: 22),
+                title: Text('Sign out', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: _red)),
+                subtitle: Text('Your logs stay safe. Sign back in anytime.',
+                    style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+              ),
+            ),
             const SizedBox(height: 32),
           ]),
         ),
@@ -163,6 +209,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildHeader(BuildContext context) {
     final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
+      const AppBackButton(),
+      const SizedBox(width: 10),
       GestureDetector(
         onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38,

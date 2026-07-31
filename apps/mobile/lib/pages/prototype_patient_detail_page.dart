@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../services/profile_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
+import '../widgets/must_remember_section.dart';
 import 'invite_sheet.dart';
 
 /// Shows the currently *selected* profile (SelectedProfile.instance) — the
@@ -15,7 +17,7 @@ class PrototypePatientDetailPage extends StatelessWidget {
   final String patientId;
   const PrototypePatientDetailPage({super.key, required this.patientId});
 
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _red = Color(0xFFEF3E23);
 
@@ -55,6 +57,10 @@ class PrototypePatientDetailPage extends StatelessWidget {
                   _buildProfileBlock(recipient),
                   const SizedBox(height: 20),
                   _buildConditions(recipient),
+                  const SizedBox(height: 24),
+                  MustRememberSection(recipient: recipient),
+                  const SizedBox(height: 24),
+                  InsightsSection(careRecipientId: recipient.id),
                   const SizedBox(height: 20),
                   _buildMenuRows(context, recipient),
                   const SizedBox(height: 20),
@@ -77,6 +83,8 @@ class PrototypePatientDetailPage extends StatelessWidget {
   Widget _buildHeader(BuildContext context, CareRecipient recipient) {
     return Row(
       children: [
+        const AppBackButton(),
+        const SizedBox(width: 10),
         GestureDetector(
           onTap: () => context.push('/profiles'),
           child: Container(

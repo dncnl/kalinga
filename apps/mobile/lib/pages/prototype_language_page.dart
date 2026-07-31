@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 class _Language {
   final String name;
@@ -25,7 +26,7 @@ class PrototypeLanguagePage extends StatefulWidget {
 }
 
 class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _tealSelected = Color(0xFF2BBFB3);
   static const _tealSelectedBg = Color(0xFFE4F5F3);
   static const _red = Color(0xFFEF3E23);
@@ -42,7 +43,12 @@ class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
+
+              // ── Back ──────────────────────────────────────────────────
+              const Align(alignment: Alignment.centerLeft, child: AppBackButton()),
+
+              const SizedBox(height: 20),
 
               // ── Logo ──────────────────────────────────────────────────
               Text(
@@ -103,7 +109,7 @@ class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/patient'),
+                  onPressed: () => context.push('/patient'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _red,
                     foregroundColor: Colors.white,
@@ -133,7 +139,7 @@ class _PrototypeLanguagePageState extends State<PrototypeLanguagePage> {
 
               // ── Footer ────────────────────────────────────────────────
               Text(
-                'No account needed. You can change this later in Settings.',
+                'You can change this later in Settings.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 12).copyWith(
                   color: Colors.grey.shade500,

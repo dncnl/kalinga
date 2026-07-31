@@ -7,6 +7,11 @@ const { slugId } = require('../lib/readableId');
 
 const router = Router();
 
+// F5 "must remember" categories. Kept deliberately small and concrete —
+// these are the things that change what a caregiver does today, not a
+// general notes field.
+const MUST_REMEMBER_CATEGORIES = ['allergy', 'directive', 'sensory', 'trigger', 'preference', 'other'];
+
 // Finds the caller's active household, or creates one on first use. There's
 // no household onboarding flow (creating a household from scratch, naming
 // it, etc) — "you get exactly one auto-created household the first time you
@@ -205,7 +210,7 @@ router.get('/households/:householdId/care-recipients', requireAuth, async (req, 
 
 router.patch('/households/:householdId/care-recipients/:careRecipientId', requireAuth, async (req, res) => {
   const { householdId, careRecipientId } = req.params;
-  const { displayName, age, preferredLanguages, conditions } = req.body || {};
+  const { displayName, age, preferredLanguages, conditions, mustRemember } = req.body || {};
 
   const isMember = await isHouseholdMember({ householdId, uid: req.uid });
   if (!isMember) {
@@ -229,11 +234,31 @@ router.patch('/households/:householdId/care-recipients/:careRecipientId', requir
   if (Array.isArray(preferredLanguages)) {
     update.preferredLanguages = preferredLanguages;
   }
-  if (typeof age === 'number' || Array.isArray(conditions)) {
+  // F5 "must remember": allergies, directives, triggers, preferences — the
+  // things a caregiver must not have to remember unaided, and that a
+  // replacement caregiver would otherwise never learn. Lives in the same
+  // free-form careProfile map as age/conditions (the schema types
+  // careProfile as a "map" for exactly this), so no schema change.
+  //
+  // Deliberately NOT model-generated: this is safety-critical standing
+  // information (a DNR, a nut allergy), so it is only ever what a human
+  // typed. Capped so one runaway client can't bloat the doc.
+  const cleanMustRemember = Array.isArray(mustRemember)
+    ? mustRemember
+        .filter((item) => item && typeof item.text === 'string' && item.text.trim())
+        .slice(0, 50)
+        .map((item) => ({
+          category: MUST_REMEMBER_CATEGORIES.includes(item.category) ? item.category : 'other',
+          text: String(item.text).trim().slice(0, 300),
+        }))
+    : null;
+
+  if (typeof age === 'number' || Array.isArray(conditions) || cleanMustRemember) {
     update.careProfile = {
       ...existing.careProfile,
       ...(typeof age === 'number' ? { age } : {}),
       ...(Array.isArray(conditions) ? { conditions } : {}),
+      ...(cleanMustRemember ? { mustRemember: cleanMustRemember } : {}),
     };
   }
 

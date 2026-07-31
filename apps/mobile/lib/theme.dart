@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 class AppColors {
   static const primary = Color(0xFFEF3E23);
   static const black = Color(0xFF000000);
+  static const background = Color(0xFFFFFFFF);
+  static const teal = Color(0xFF2BBFB3);
 }
 
 class AppTextStyles {

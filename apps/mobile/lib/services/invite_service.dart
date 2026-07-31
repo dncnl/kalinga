@@ -8,27 +8,27 @@ import 'auth_token.dart';
 /// Resolves and accepts household invite tokens (family or caregiver role).
 /// See apps/api/src/routes/invites.js for the backend — this is a thin
 /// HTTP wrapper, no logic lives here.
+/// Shape of GET /invites/:code — a pure shared-secret join code since
+/// b10bcd9: no invitee identity (email) is attached, and the raw code is
+/// never echoed back (only its hash is stored server-side).
 class InviteDetails {
-  final String token;
+  final String intendedRole;
   final String inviterName;
   final String? patientId;
   final String? patientName;
-  final String email;
 
   const InviteDetails({
-    required this.token,
+    required this.intendedRole,
     required this.inviterName,
     required this.patientId,
     required this.patientName,
-    required this.email,
   });
 
   factory InviteDetails.fromJson(Map<String, dynamic> json) => InviteDetails(
-        token: json['token'] as String,
-        inviterName: json['inviterName'] as String,
+        intendedRole: json['intendedRole'] as String? ?? 'family',
+        inviterName: json['inviterName'] as String? ?? 'A caregiver',
         patientId: json['patientId'] as String?,
         patientName: json['patientName'] as String?,
-        email: json['email'] as String,
       );
 }
 
@@ -63,14 +63,13 @@ class InviteService {
     }
   }
 
-  /// POST /households/:householdId/invitations — creates a new invite for
-  /// [intendedRole] ('family' or 'caregiver'), optionally scoped to a
-  /// single care recipient. Returns the raw token; the caller builds a
-  /// shareable link (no email-sending infra exists yet, see PLAN.md).
+  /// POST /households/:householdId/invitations — creates a new join code
+  /// for [intendedRole] ('family' or 'caregiver'), optionally scoped to a
+  /// single care recipient. Returns the raw code for the caregiver to share
+  /// verbally/by message; the backend doesn't tie it to any invitee email.
   Future<String> createInvite({
     required String householdId,
     required String intendedRole,
-    required String invitedEmail,
     String? careRecipientId,
   }) async {
     final idToken = await getIdToken();
@@ -82,13 +81,12 @@ class InviteService {
       },
       body: jsonEncode({
         'intendedRole': intendedRole,
-        'invitedEmail': invitedEmail,
         if (careRecipientId != null) 'careRecipientId': careRecipientId,
       }),
     );
     if (res.statusCode != 200) {
       throw Exception('Failed to create invite: ${res.body}');
     }
-    return (jsonDecode(res.body) as Map<String, dynamic>)['token'] as String;
+    return (jsonDecode(res.body) as Map<String, dynamic>)['code'] as String;
   }
 }

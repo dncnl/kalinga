@@ -5,13 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'services/profile_service.dart';
 import 'state/dev_bypass.dart';
 import 'state/selected_profile.dart';
+import 'state/session_role.dart';
 import 'pages/prototype_language_page.dart';
 import 'pages/prototype_patient_page.dart';
 import 'pages/profile_picker_page.dart';
 import 'pages/prototype_home_page.dart';
 import 'pages/prototype_patient_detail_page.dart';
-import 'pages/prototype_patient_schedule_page.dart';
-import 'pages/prototype_checkin_page.dart';
+import 'pages/reminders_page.dart';
+import 'pages/reminder_checkin_page.dart';
+import 'pages/symptom_check_page.dart';
+import 'services/reminder_service.dart';
 import 'pages/prototype_log_page.dart';
 import 'pages/ask_page.dart';
 import 'pages/meds_page.dart';
@@ -21,33 +24,54 @@ import 'pages/activity_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/auth_page.dart';
 import 'pages/family_register_page.dart';
+import 'pages/family_code_page.dart';
+import 'pages/family_recipients_page.dart';
+import 'pages/role_select_page.dart';
+import 'pages/welcome_page.dart';
+import 'services/family_viewer_service.dart';
 
 final router = GoRouter(
-  initialLocation: '/auth',
+  initialLocation: '/',
   // SelectedProfile.initialize() (fired unawaited in main.dart) restores an
   // already-onboarded caregiver's household/profile from the server. Once
   // that resolves and finds an existing profile, skip the onboarding
   // flow (/language, /patient) straight to /home instead of making a
   // returning caregiver click through it again every launch.
-  refreshListenable: Listenable.merge([SelectedProfile.instance, DevBypass.instance]),
+  refreshListenable: Listenable.merge([SelectedProfile.instance, DevBypass.instance, SessionRole.instance]),
   redirect: (context, state) {
     // A real (non-anonymous) account is required to use the app —
     // AuthPage's dev-only "Skip (dev)" button is the only way past this
-    // outside of actually registering/signing in. /invite/:token is its
-    // own self-contained account-creation flow for family members
-    // (family_register_page.dart), so it's exempt from this gate too.
-    final onAuthGate = state.matchedLocation == '/auth' || state.matchedLocation.startsWith('/invite/');
+    // outside of actually registering/signing in. The whole entry funnel
+    // (welcome → role picker → auth / family-code / invite) has to stay
+    // reachable without an account, since it's how one gets created.
+    final loc = state.matchedLocation;
+    final onEntryFunnel = loc == '/' ||
+        loc == '/role' ||
+        loc == '/auth' ||
+        loc == '/family-code' ||
+        loc.startsWith('/invite/');
     final user = FirebaseAuth.instance.currentUser;
     final hasRealAccount = user != null && !user.isAnonymous;
-    if (!hasRealAccount && !DevBypass.instance.skipped && !onAuthGate) return '/auth';
+    if (!hasRealAccount && !DevBypass.instance.skipped && !onEntryFunnel) return '/';
 
     final profile = SelectedProfile.instance;
+    // Family surface never touches SelectedProfile — WelcomePage's resume
+    // logic (async FamilyViewerService resolution, can't run in a sync
+    // redirect) routes a restored family session to its viewer.
+    if (SessionRole.instance.isFamily) return null;
     if (!profile.hasProfile) return null;
 
-    final onboarding = state.matchedLocation == '/language' || state.matchedLocation == '/patient';
-    return onboarding ? '/home' : null;
+    // A caregiver with a restored profile shouldn't click through
+    // onboarding again, and a signed-in one shouldn't sit on the entry
+    // funnel after an app restart (session persistence) — both go home.
+    final onboarding = loc == '/language' || loc == '/patient';
+    if (onboarding) return '/home';
+    final onWelcomeOrAuth = loc == '/' || loc == '/role' || loc == '/auth';
+    if (hasRealAccount && onWelcomeOrAuth) return '/home';
+    return null;
   },
   routes: [
+    GoRoute(path: '/',          builder: (c, s) => const WelcomePage()),
     GoRoute(path: '/language',  builder: (c, s) => const PrototypeLanguagePage()),
     GoRoute(path: '/patient',   builder: (c, s) => const PrototypePatientPage()),
     GoRoute(path: '/patient/edit',
@@ -63,12 +87,27 @@ final router = GoRouter(
     GoRoute(path: '/patients/:id',
         builder: (c, s) => PrototypePatientDetailPage(patientId: s.pathParameters['id']!)),
     GoRoute(path: '/patients/:id/schedules',
-        builder: (c, s) => PrototypePatientSchedulePage(patientId: s.pathParameters['id']!)),
-    GoRoute(path: '/checkin/:scheduleId',
-        builder: (c, s) => PrototypeCheckinPage(scheduleId: s.pathParameters['scheduleId']!)),
+        builder: (c, s) => RemindersPage(patientId: s.pathParameters['id']!)),
+    // The ReminderEvent comes through `extra` so the check-in can render its
+    // question set immediately; it degrades to a plain note if opened cold.
+    GoRoute(path: '/checkin/:eventId',
+        builder: (c, s) => ReminderCheckinPage(
+              eventId: s.pathParameters['eventId']!,
+              event: s.extra as ReminderEvent?,
+            )),
+    GoRoute(path: '/symptom-check', builder: (c, s) => const SymptomCheckPage()),
     GoRoute(path: '/viewer/:id',
         builder: (c, s) => ViewerPage(viewerId: s.pathParameters['id']!)),
-    GoRoute(path: '/auth',    builder: (c, s) => const AuthPage()),
+    GoRoute(path: '/auth',
+        builder: (c, s) => AuthPage(
+              startInLoginMode: s.uri.queryParameters['mode'] == 'login',
+              asFamilyMember: s.uri.queryParameters['role'] == 'family',
+            )),
+    GoRoute(path: '/role',
+        builder: (c, s) => RoleSelectPage(isLogin: s.uri.queryParameters['mode'] == 'login')),
+    GoRoute(path: '/family-code',  builder: (c, s) => const FamilyCodePage()),
+    GoRoute(path: '/family-recipients',
+        builder: (c, s) => FamilyRecipientsPage(recipients: s.extra as List<ViewableCareRecipient>)),
     GoRoute(path: '/invite/:token',
         builder: (c, s) => FamilyRegisterPage(token: s.pathParameters['token']!)),
   ],

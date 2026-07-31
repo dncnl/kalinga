@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/medication_service.dart';
+import '../services/reminder_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
 
@@ -17,7 +18,7 @@ class PrototypeHomePage extends StatefulWidget {
 }
 
 class _PrototypeHomePageState extends State<PrototypeHomePage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
   static const _amber = Color(0xFFD97706);
@@ -27,9 +28,11 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
 
   int _navIndex = 0;
   final _medicationService = const MedicationService();
+  final _reminderService = const ReminderService();
 
   List<MedicationEvent> _events = [];
   Map<String, Medication> _medsById = {};
+  List<ReminderEvent> _reminderEvents = [];
   bool _loadingSchedule = true;
   String? _scheduleError;
 
@@ -61,14 +64,23 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
       final results = await Future.wait([
         _medicationService.listMedications(scope.householdId, scope.careRecipientId),
         _medicationService.todaysEvents(scope.householdId, scope.careRecipientId),
+        // F2 reminders load alongside the medicine schedule rather than in
+        // their own pass — they're both "what is due today".
+        _reminderService.todaysEvents(
+          householdId: scope.householdId,
+          careRecipientId: scope.careRecipientId,
+        ),
       ]);
       final meds = results[0] as List<Medication>;
       final events = results[1] as List<MedicationEvent>;
+      final reminders = results[2] as List<ReminderEvent>;
       events.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+      reminders.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
       if (!mounted) return;
       setState(() {
         _medsById = {for (final m in meds) m.id: m};
         _events = events;
+        _reminderEvents = reminders;
       });
     } catch (e) {
       if (!mounted) return;
@@ -109,9 +121,12 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
                 _buildGreetingCard(),
                 const SizedBox(height: 16),
                 _buildStartLogButton(),
+                const SizedBox(height: 10),
+                _buildSymptomCheckButton(),
                 const SizedBox(height: 28),
                 _buildQuickActions(),
                 const SizedBox(height: 28),
+                _buildRemindersSection(),
                 _buildScheduleSection(),
                 const SizedBox(height: 24),
               ],
@@ -339,6 +354,33 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
     );
   }
 
+  // ── Symptom check-in (F1) ──────────────────────────────────────────────────
+  //
+  // Its own full-width button rather than a fifth quick-action icon: this is
+  // the path someone takes when they think something is wrong right now, and
+  // it should be findable without reading a row of small labels. Calm styling
+  // on purpose — an alarming red button invites panic taps.
+
+  Widget _buildSymptomCheckButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => context.push('/symptom-check'),
+        icon: const Icon(Icons.health_and_safety_outlined, size: 20),
+        label: Text(
+          'Something is wrong',
+          style: AppTextStyles.bodyMedium(fontSize: 16).copyWith(color: Colors.black87),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black87,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        ),
+      ),
+    );
+  }
+
   // ── Quick actions ──────────────────────────────────────────────────────────
 
   Widget _buildQuickActions() {
@@ -402,6 +444,44 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   }
 
   // ── Schedule section ───────────────────────────────────────────────────────
+
+  // ── Today's reminders (F2/F3) ──────────────────────────────────────────────
+  //
+  // Hidden entirely when there are none: an empty-state card for a feature
+  // the caregiver hasn't set up yet is just noise above the thing she
+  // actually opened the app for. The reminders screen itself has the empty
+  // state and the add button.
+
+  Widget _buildRemindersSection() {
+    if (_loadingSchedule || _reminderEvents.isEmpty) return const SizedBox.shrink();
+    final recipientId = SelectedProfile.instance.careRecipient?.id ?? 'none';
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text("TODAY'S REMINDERS",
+            style: AppTextStyles.bodyMedium(fontSize: 11)
+                .copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
+        GestureDetector(
+          onTap: () => context.push('/patients/$recipientId/schedules'),
+          child: Text('Manage', style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(color: _teal)),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      ..._reminderEvents.map((event) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _ReminderTile(
+              event: event,
+              onTap: event.isDone
+                  ? null
+                  : () async {
+                      await context.push('/checkin/${event.id}', extra: event);
+                      if (mounted) _loadSchedule();
+                    },
+            ),
+          )),
+      const SizedBox(height: 24),
+    ]);
+  }
 
   Widget _buildScheduleSection() {
     return Column(
@@ -585,6 +665,65 @@ class _QuickActionTile extends StatelessWidget {
 
 enum _ScheduleStatus { done, due, upcoming, skipped }
 
+class _ReminderTile extends StatelessWidget {
+  final ReminderEvent event;
+  final VoidCallback? onTap;
+
+  const _ReminderTile({required this.event, this.onTap});
+
+  static const _teal = Color(0xFF2BBFB3);
+
+  @override
+  Widget build(BuildContext context) {
+    final time = TimeOfDay.fromDateTime(event.scheduledAt);
+    final timeText =
+        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    final isDue = !event.isDone && event.scheduledAt.isBefore(DateTime.now());
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: isDue ? _teal : Colors.grey.shade200, width: isDue ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: event.isDone ? _teal : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: event.isDone ? _teal : Colors.grey.shade300, width: 1.5),
+            ),
+            child: event.isDone
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(event.taskTitle,
+                style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(
+                  color: event.isDone ? Colors.grey.shade500 : Colors.black87,
+                  decoration: event.isDone ? TextDecoration.lineThrough : null,
+                )),
+            const SizedBox(height: 2),
+            Text(timeText,
+                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500)),
+          ])),
+          if (!event.isDone)
+            Text(event.hasCheckin ? 'How did it go?' : 'Mark done',
+                style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: _teal)),
+        ]),
+      ),
+    );
+  }
+}
+
 class _ScheduleTile extends StatelessWidget {
   final MedicationEvent event;
   final Medication? medication;
@@ -691,6 +830,7 @@ class _ScheduleTile extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
+                      border: Border.all(color: Colors.grey.shade200),
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2))],
                     ),
