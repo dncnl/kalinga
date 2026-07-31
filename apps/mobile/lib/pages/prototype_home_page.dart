@@ -106,13 +106,13 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
                 const SizedBox(height: 16),
                 _buildHeader(context),
                 const SizedBox(height: 20),
-                _buildGreetingCard(),
+                _FadeSlideIn(index: 0, child: _buildGreetingCard()),
                 const SizedBox(height: 16),
-                _buildStartLogButton(),
+                _FadeSlideIn(index: 1, child: _buildStartLogButton()),
                 const SizedBox(height: 28),
-                _buildQuickActions(),
+                _FadeSlideIn(index: 2, child: _buildQuickActions()),
                 const SizedBox(height: 28),
-                _buildScheduleSection(),
+                _FadeSlideIn(index: 3, child: _buildScheduleSection()),
                 const SizedBox(height: 24),
               ],
             ),
@@ -279,20 +279,30 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
                 stream: _todaysObservationsStream,
                 builder: (context, snapshot) {
                   final hasLoggedToday = (snapshot.data?.docs.length ?? 0) > 0;
-                  return Row(children: [
-                    Icon(
-                      hasLoggedToday ? Icons.check_circle_rounded : Icons.mic_none_rounded,
-                      size: 16,
-                      color: hasLoggedToday ? const Color(0xFF22C55E) : Colors.grey.shade600,
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SizeTransition(sizeFactor: animation, axis: Axis.vertical, child: child),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        hasLoggedToday ? "Logged for $name today." : "Haven't logged $name yet today.",
-                        style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade700, height: 1.4),
-                      ),
+                    child: Row(
+                      key: ValueKey(hasLoggedToday),
+                      children: [
+                        Icon(
+                          hasLoggedToday ? Icons.check_circle_rounded : Icons.mic_none_rounded,
+                          size: 16,
+                          color: hasLoggedToday ? const Color(0xFF22C55E) : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            hasLoggedToday ? "Logged for $name today." : "Haven't logged $name yet today.",
+                            style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade700, height: 1.4),
+                          ),
+                        ),
+                      ],
                     ),
-                  ]);
+                  );
                 },
               ),
               if (totalToday > 0) ...[
@@ -383,19 +393,10 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
           'QUICK ACTIONS',
           style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8),
         ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: _cardShadow,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: actions.map((a) => _QuickActionTile(action: a)).toList(),
-          ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: actions.map((a) => _QuickActionTile(action: a)).toList(),
         ),
       ],
     );
@@ -516,6 +517,29 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   }
 }
 
+// ── Staggered entrance animation ────────────────────────────────────────────
+
+class _FadeSlideIn extends StatelessWidget {
+  final Widget child;
+  final int index;
+  const _FadeSlideIn({required this.child, this.index = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('fade-slide-in-$index'),
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 380 + index * 90),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(offset: Offset(0, (1 - value) * 14), child: child),
+      ),
+      child: child,
+    );
+  }
+}
+
 // ── Quick action tile ─────────────────────────────────────────────────────────
 
 class _QuickAction {
@@ -536,46 +560,68 @@ class _QuickAction {
   });
 }
 
-class _QuickActionTile extends StatelessWidget {
+class _QuickActionTile extends StatefulWidget {
   final _QuickAction action;
   const _QuickActionTile({required this.action});
 
   @override
+  State<_QuickActionTile> createState() => _QuickActionTileState();
+}
+
+class _QuickActionTileState extends State<_QuickActionTile> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final action = widget.action;
     return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
       onTap: () => context.push(action.route),
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(color: action.bg, borderRadius: BorderRadius.circular(16)),
-                child: Icon(action.icon, color: action.iconColor, size: 26),
-              ),
-              if (action.badge != null)
-                Positioned(
-                  top: -6,
-                  right: -6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(color: Color(0xFFEF3E23), shape: BoxShape.circle),
-                    child: Center(
-                      child: Text(
-                        action.badge!,
-                        style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.white),
+      child: AnimatedScale(
+        scale: _pressed ? 0.9 : 1,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: action.bg,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(color: action.iconColor.withValues(alpha: 0.18), blurRadius: 12, offset: const Offset(0, 5)),
+                    ],
+                  ),
+                  child: Icon(action.icon, color: action.iconColor, size: 26),
+                ),
+                if (action.badge != null)
+                  Positioned(
+                    top: -6,
+                    right: -6,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: const BoxDecoration(color: Color(0xFFEF3E23), shape: BoxShape.circle),
+                      child: Center(
+                        child: Text(
+                          action.badge!,
+                          style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.white),
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(action.label, style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade700)),
-        ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(action.label, style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade700)),
+          ],
+        ),
       ),
     );
   }
@@ -639,22 +685,23 @@ class _ScheduleTile extends StatelessWidget {
             width: 28,
             child: Column(
               children: [
-                isDone
-                    ? Container(
-                        width: 24,
-                        height: 24,
-                        decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-                        child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
-                      )
-                    : Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                        ),
-                      ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOut,
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: isDone ? _teal : Colors.white,
+                    shape: BoxShape.circle,
+                    border: isDone ? null : Border.all(color: Colors.grey.shade300, width: 1.5),
+                  ),
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.elasticOut,
+                    scale: isDone ? 1 : 0,
+                    child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                  ),
+                ),
                 if (!isLast)
                   Expanded(
                     child: Container(
@@ -674,13 +721,21 @@ class _ScheduleTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Container(
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: _badgeColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text(_badgeLabel, style: AppTextStyles.bodyMedium(fontSize: 10).copyWith(color: _badgeColor)),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _badgeLabel,
+                          key: ValueKey(_badgeLabel),
+                          style: AppTextStyles.bodyMedium(fontSize: 10).copyWith(color: _badgeColor),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(detailParts.join(' · '), style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade500)),
@@ -698,19 +753,33 @@ class _ScheduleTile extends StatelessWidget {
                       Expanded(
                         child: Text(name, style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
                       ),
-                      if (!isDone)
-                        OutlinedButton(
-                          onPressed: onMarkTaken,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            side: const BorderSide(color: Colors.black87),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text('Mark taken', style: AppTextStyles.bodyMedium(fontSize: 12)),
-                        ),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: FadeTransition(opacity: animation, child: child)),
+                        child: isDone
+                            ? Row(
+                                key: const ValueKey('done'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_rounded, color: _teal, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text('Taken', style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(color: _teal)),
+                                ],
+                              )
+                            : OutlinedButton(
+                                key: const ValueKey('mark-taken'),
+                                onPressed: onMarkTaken,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.black87,
+                                  side: const BorderSide(color: Colors.black87),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text('Mark taken', style: AppTextStyles.bodyMedium(fontSize: 12)),
+                              ),
+                      ),
                     ]),
                   ),
                 ],
