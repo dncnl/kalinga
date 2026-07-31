@@ -78,3 +78,28 @@ test('returns a signed upload URL for an assigned caregiver', async (t) => {
     'households/h1/careRecipients/r1/observations/obs-123/audio.m4a',
   );
 });
+
+// Regression: this used to be an unhandled rejection, which Express served
+// as a raw HTML error page (the caregiver saw a stack trace instead of a
+// message). Must now come back as clean JSON.
+test('returns a clean JSON error when signing fails', async (t) => {
+  mockAuthedUser(t, 'caregiver-1');
+  mockAssignment(t, { status: 'active' });
+
+  t.mock.method(firebase.db, 'collection', () => ({ doc: () => ({ id: 'obs-123' }) }));
+  t.mock.method(firebase, 'getBucket', () => ({
+    file: () => ({
+      getSignedUrl: async () => {
+        throw new Error('Cannot sign data without `client_email`.');
+      },
+    }),
+  }));
+
+  const res = await request(app)
+    .post(ROUTE)
+    .set('Authorization', 'Bearer token')
+    .send({ contentType: 'audio/m4a' });
+
+  assert.equal(res.status, 502);
+  assert.match(res.body.error, /FIREBASE_SERVICE_ACCOUNT/);
+});
