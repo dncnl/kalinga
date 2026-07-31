@@ -9,6 +9,53 @@ Budget ~30 minutes the first time, most of it waiting on installs.
 
 ---
 
+## Part 0 — What still needs a human
+
+Read this before you trust anything. The branch was developed with
+`FIREBASE_STORAGE_BUCKET` **unset**, so the two Storage-dependent features
+were built and unit-tested but **never run against real infrastructure**.
+That variable is now documented in §1.6; once it's set, these should work —
+but "should" is not "does", and nobody has confirmed it yet.
+
+**Priority 1 — never exercised end to end, needs someone to actually try:**
+
+| What | Why it wasn't verified | Where to check it |
+|---|---|---|
+| **F4 voice log** — record → transcribe → translate → trend chart | Needs Cloud Storage; bucket was unset | Part 3, Step 3 |
+| **F7 medication label scan** — photo → OCR draft → confirm → schedule | Same; also needs a real medicine box to photograph | Part 3, Step 6 |
+| **F0 multi-recipient scoping** — 2+ elders, switching between them | Only one recipient was ever created during development | Part 3, Step 2 |
+| **Family account linked to 2+ recipients** → picker screen | Only the single-recipient path was tested | Part 3, Step 9b |
+
+The first two are backend-integration risk (does the pipeline actually run?).
+The second two are correctness risk, and F0 is the more serious of the pair:
+every feature scopes to a `careRecipientId`, so if switching elders leaks data
+between profiles, that's a **stop-and-fix**, not a polish item.
+
+**Priority 2 — known, low severity, not yet fixed:**
+
+- `apps/mobile/lib/pages/meds_page.dart` (~line 164) still filters times with
+  `^\d{2}:\d{2}$`, which accepts nonsense like `25:99`. The equivalent
+  server-side checks were tightened to a real clock-time pattern; this client
+  one wasn't. The server is authoritative for reminder generation, so the
+  blast radius is small, but it's the same bug class.
+- `activity_page.dart` still renders **four hardcoded fixture entries**
+  ("Family replied…", "Alert sent…"). It's reachable from the 🔔 icon and
+  presents invented medical events as this elder's real history. Every other
+  screen is on live data. Either wire it to the observations feed or hide the
+  bell before showing this to anyone outside the team.
+
+**Known-incomplete by design** (fine for the pilot, don't file bugs):
+
+- Settings toggles and both language dropdowns are inert local state. The
+  transcription locale is still hardcoded (`demoLocale = 'fil'` in
+  `api_config.dart`), so changing "Your language" changes nothing yet.
+- Reminder times are generated in **UTC**, so they fire at the wrong local
+  time outside UTC.
+- No push notifications — reminders only surface while the app is open.
+- Insights look at the current week only.
+
+---
+
 ## Part 1 — One-time setup
 
 ### 1.1 What needs to be true before anything works
@@ -36,7 +83,31 @@ Ask a project owner to add your Google account to Firebase project
 You need at least **Editor**, because you'll be calling Vertex AI, Speech and
 Translate.
 
-### 1.3 Authenticate — pick ONE of these
+### 1.3 You do not need any API keys for Google
+
+Worth stating plainly, because people go hunting for keys that don't exist:
+
+**All five Google services above authenticate with the same identity.** Under
+ADC that's your `gcloud` login; when deployed it's the service account. There
+is **no** Speech key, **no** Translate key, **no** Vertex AI key, **no**
+Firestore key. `googleAuthOptions()` in `src/firebase.js` hands that one
+identity to every `@google-cloud/*` client.
+
+Two things that look like keys but aren't:
+
+- **`OPENROUTER_API_KEY`** is the only real API key in the project, and it's
+  **optional** — it's the non-Google fallback LLM provider, used only if you
+  set `LLM_PROVIDER=openrouter`. Leave it empty and everything still works on
+  Vertex AI.
+- **The `apiKey` in `firebase_options.dart` / `google-services.json`** is
+  Firebase *client* config. It is committed on purpose and is not a secret —
+  it ships inside every built app binary anyway, and Firebase's security model
+  rests on Firestore/Storage rules, not on hiding it. You don't set it up and
+  you don't rotate it. See README §4.
+
+So: do §1.4 below, and you're authenticated for everything.
+
+### 1.4 Authenticate — pick ONE of these
 
 There are two supported ways to authenticate the API. Don't do both.
 
@@ -59,7 +130,7 @@ Firebase Console → Project Settings → Service Accounts → Generate new priv
 key, then paste the **entire JSON on one line** into `FIREBASE_SERVICE_ACCOUNT`
 in `.env`. Never commit it. See README §4 — this key is full backend access.
 
-### 1.4 Enable the APIs
+### 1.5 Enable the APIs
 
 Once, per project. Someone has probably already done this, but it's harmless
 to re-run:
@@ -73,7 +144,7 @@ gcloud services enable \
   storage.googleapis.com
 ```
 
-### 1.5 API env file
+### 1.6 API env file
 
 ```bash
 cd apps/api
@@ -104,12 +175,29 @@ Two things people get wrong here:
 - **`GOOGLE_CLOUD_PROJECT` is not optional under ADC.** `firebase.js` derives
   `projectId` from the service-account JSON *or* this variable. With both
   empty, Vertex AI calls fail with a confusing project error.
-- **`FIREBASE_STORAGE_BUCKET` must be set** for the voice log and the
-  medication label scan. Copy the exact bucket name from Firebase Console →
-  Storage (it is shown at the top of the Files tab). Without it those two
-  features 502 while everything else works fine.
+- **`FIREBASE_STORAGE_BUCKET` must be set** for the voice log (F4) and the
+  medication label scan (F7). These are the only two features that touch
+  Cloud Storage. With it empty, `getBucket()` throws and both return 502 —
+  while every other screen keeps working normally, which is exactly why it's
+  easy to miss. This bit us during development: the branch was built with it
+  unset, so F4 and F7 were never exercised on a device (see
+  [§What still needs a human](#part-0--what-still-needs-a-human)).
 
-### 1.6 Install and seed
+  The value above is correct for this project and is not a secret — it's
+  already in the committed `google-services.json` and `firebase_options.dart`.
+
+**Verify your credentials can actually reach the bucket** before blaming the
+app. This is worth doing once; it isolates auth problems from app problems:
+
+```bash
+cd apps/api
+node -e "require('dotenv').config({quiet:true}); const fb=require('./src/firebase'); (async()=>{ try { const b=fb.getBucket(); console.log('bucket:', b.name); const [e]=await b.exists(); console.log('reachable:', e); } catch(err){ console.log('FAILED:', err.message); } })()"
+```
+
+Expect `reachable: true`. If it prints `FAILED`, your ADC login or project
+access is the problem, not the code.
+
+### 1.7 Install and seed
 
 ```bash
 # API
@@ -134,7 +222,7 @@ Confirm the API is alive before touching the app:
 curl http://localhost:8081/health     # {"status":"ok"}
 ```
 
-### 1.7 Emulator networking
+### 1.8 Emulator networking
 
 `apps/mobile/lib/api_config.dart` already handles this:
 
@@ -147,7 +235,7 @@ curl http://localhost:8081/health     # {"status":"ok"}
   ```
   and make sure your firewall allows inbound 8081.
 
-### 1.8 Run it
+### 1.9 Run it
 
 ```bash
 cd apps/mobile
@@ -227,18 +315,33 @@ between them. Every screen (Home, Log, Meds, Reminders, profile) must follow
 the selected recipient. This is F0, and it's the invariant everything else
 depends on — if a screen shows the wrong elder's data, stop and report it.
 
-### Step 3 — Voice log (F4)
+### Step 3 — Voice log (F4) 🚩 UNVERIFIED
+
+> **This step has never been run end to end.** Treat a failure here as
+> expected-unknown rather than a regression, and report what you see.
 
 Home → **Start daily log** → hold the mic → speak a few seconds → release.
 
 **Expect:** "Logged — processing…". The trend chart fills in a few seconds
 later once transcription, translation and extraction finish server-side.
 
-⚠️ **This is the step most likely to fail on a fresh setup**, and it's almost
-always `FIREBASE_STORAGE_BUCKET` being unset (§1.5) or Speech-to-Text not
-enabled. Watch the API terminal — `processObservationJob` logs its failures.
-The emulator's mic records host audio; if you get "No speech detected", check
-your mic isn't muted at the OS level.
+**Work through it in this order if it fails** — the pipeline has four stages
+and they fail differently:
+
+1. **Upload** — API terminal shows the `upload-url` and `process` calls
+   returning 200. If not, it's `FIREBASE_STORAGE_BUCKET` (§1.6).
+2. **Transcription** — `processObservationJob` logs failures. "No speech
+   detected in recording" means the audio uploaded fine but was silent; the
+   emulator records **host** audio, so check your OS mic isn't muted.
+   A Speech API error means `speech.googleapis.com` isn't enabled.
+3. **Translation** — a Translate error here still leaves the observation
+   saved; it just won't have Mandarin.
+4. **Rollup** — the chart is driven by a Firestore listener on
+   `weeklySummaries`, so it can lag a second or two behind. Pull to refresh.
+
+The observation doc's `status` field tracks all of this (`processing` →
+`ready`, or `cancelled` + `processingError`), so check Firestore directly if
+the terminal isn't conclusive.
 
 ### Step 4 — Symptom check-in (F1)
 
@@ -273,14 +376,38 @@ observation, so they feed the same trend chart as the voice log.
 Then add an **Exercise** reminder and confirm it asks a *different* question
 set, and a **Medication** one and confirm it just completes with no questions.
 
-### Step 6 — Medication label scan (F7)
+### Step 6 — Medication label scan (F7) 🚩 UNVERIFIED
 
-Meds → add via photo → point at any medicine box (a photo on another screen
-works).
+> **Never run against a real photo.** The extraction logic has unit tests
+> (`test/extractMedicationLabel.test.js`) but the Vertex vision call has not
+> been exercised. Needs Storage **and** Vertex AI configured.
 
-**Expect:** a draft with `verificationStatus: unverified` that you must
-confirm before it schedules anything. Fields it can't read must come back
-blank rather than guessed. Needs Storage + Vertex AI configured.
+Meds → add via photo → photograph any medicine box or pharmacy label. A label
+displayed on another screen photographs fine; so does picking an existing
+image from the emulator's gallery.
+
+**Expect — the review sheet is the whole point of this feature.** After the
+scan a sheet appears reading *"Kalinga read this from the photo — check it's
+correct. Nothing is scheduled until you confirm."* with every field editable.
+Three things to check:
+
+1. **Nothing is scheduled until you hit Confirm.** Dismiss the sheet without
+   confirming, then go to Home — the medicine must **not** appear in today's
+   schedule. Under the hood the draft is saved with
+   `verificationStatus: 'unverified'`, and `generate-today` explicitly skips
+   unverified medications. This is the human-in-the-loop step the schema
+   requires; if an unconfirmed scan ever schedules a dose, that's a serious
+   bug.
+2. **Unreadable fields come back blank, not guessed.** Photograph a label with
+   something deliberately missing — e.g. one with no dosing frequency printed.
+   The times field should be empty and dosage blank, rather than a plausible
+   invention. The prompt forbids inferring from pill appearance, and a test
+   asserts that instruction survives.
+3. **A blurry or angled photo should come back low-confidence**, which is what
+   tells the caregiver to look carefully.
+
+Then edit a field in the sheet, **Confirm**, and check the medicine now
+appears on Home with your edit — confirming is also how corrections are made.
 
 ### Step 7 — Profile: must-remember + insights (F5)
 
