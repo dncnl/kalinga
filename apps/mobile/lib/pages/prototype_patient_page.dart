@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/profile_service.dart';
+import '../state/selected_profile.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 const _conditions = [
   'dementia',
@@ -22,27 +25,89 @@ const _languages = [
 ];
 
 class PrototypePatientPage extends StatefulWidget {
-  const PrototypePatientPage({super.key});
+  /// When non-null, this screen edits [editing] instead of creating a new
+  /// profile — prefills the form and calls SelectedProfile.updateSelected()
+  /// on submit. [editing] must already be the selected profile (the picker/
+  /// detail page selects it before navigating here).
+  final CareRecipient? editing;
+  const PrototypePatientPage({super.key, this.editing});
 
   @override
   State<PrototypePatientPage> createState() => _PrototypePatientPageState();
 }
 
 class _PrototypePatientPageState extends State<PrototypePatientPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
   static const _chipSelected = Color(0xFF111111);
 
-  final _nameController = TextEditingController();
-  final _ageController = TextEditingController();
-  String _selectedLanguage = _languages.first;
-  final Set<String> _selectedConditions = {'dementia', 'hypertension'};
+  late final _nameController = TextEditingController(text: widget.editing?.displayName ?? '');
+  late final _ageController = TextEditingController(text: widget.editing?.age?.toString() ?? '');
+  late String _selectedLanguage = widget.editing?.preferredLanguages.firstOrNull ?? _languages.first;
+  late final Set<String> _selectedConditions = {
+    ...(widget.editing?.conditions ?? const ['dementia', 'hypertension']),
+  };
+
+  bool get _isEditing => widget.editing != null;
+
+  bool _saving = false;
+  String? _error;
 
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Add a name.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      // main.dart fires SelectedProfile.initialize() unawaited so startup
+      // isn't blocked on a network round trip — on a slow first load
+      // (web cold-start especially) a caregiver can reach this screen and
+      // submit before householdId is populated. Wait for it here instead
+      // of failing with "initialize() must complete first".
+      await SelectedProfile.instance.ready;
+      if (SelectedProfile.instance.householdId == null) {
+        throw Exception(SelectedProfile.instance.error ?? 'Could not load household — check your connection.');
+      }
+
+      if (_isEditing) {
+        await SelectedProfile.instance.updateSelected(
+          displayName: name,
+          age: int.tryParse(_ageController.text.trim()),
+          preferredLanguages: [_selectedLanguage],
+          conditions: _selectedConditions.toList(),
+        );
+        if (!mounted) return;
+        context.pop();
+      } else {
+        await SelectedProfile.instance.createAndSelect(
+          displayName: name,
+          age: int.tryParse(_ageController.text.trim()),
+          preferredLanguages: [_selectedLanguage],
+          conditions: _selectedConditions.toList(),
+        );
+        if (!mounted) return;
+        context.go('/home');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not save: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -55,22 +120,28 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
+
+              // ── Back ──────────────────────────────────────────────────
+              const Align(alignment: Alignment.centerLeft, child: AppBackButton()),
+
+              const SizedBox(height: 16),
 
               // ── Step label ─────────────────────────────────────────────
-              Text(
-                'STEP 2 OF 2',
-                style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(
-                  color: Colors.grey.shade500,
-                  letterSpacing: 0.5,
+              if (!_isEditing)
+                Text(
+                  'STEP 2 OF 2',
+                  style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(
+                    color: Colors.grey.shade500,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+              if (!_isEditing) const SizedBox(height: 8),
 
               // ── Title ──────────────────────────────────────────────────
               Text(
-                'Who do you care for?',
+                _isEditing ? 'Edit profile' : 'Who do you care for?',
                 style: AppTextStyles.heading(fontSize: 32).copyWith(
                   color: Colors.black,
                 ),
@@ -80,7 +151,7 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
 
               // ── Subtitle ───────────────────────────────────────────────
               Text(
-                'Add one elder now. You can add more later.',
+                _isEditing ? 'Update their details.' : 'Add one elder now. You can add more later.',
                 style: AppTextStyles.body(fontSize: 14).copyWith(
                   color: Colors.grey.shade600,
                 ),
@@ -210,11 +281,19 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
 
               const SizedBox(height: 32),
 
+              if (_error != null) ...[
+                Text(
+                  _error!,
+                  style: AppTextStyles.body(fontSize: 13).copyWith(color: _red),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // ── Save and start button ──────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/home'),
+                  onPressed: _saving ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _red,
                     foregroundColor: Colors.white,
@@ -224,12 +303,17 @@ class _PrototypePatientPageState extends State<PrototypePatientPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(
-                    'Save and start',
-                    style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                        )
+                      : Text(
+                          _isEditing ? 'Save changes' : 'Save and start',
+                          style: AppTextStyles.bodyMedium(fontSize: 17).copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
 

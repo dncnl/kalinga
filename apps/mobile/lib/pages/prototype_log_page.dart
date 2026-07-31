@@ -1,15 +1,19 @@
-import 'dart:io';
+import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
-import '../api_config.dart';
+import '../state/selected_profile.dart';
 import '../services/observation_service.dart';
 import '../theme.dart';
+import '../wav.dart';
 import '../week_key.dart';
+
+const _sampleRate = 16000;
+const _numChannels = 1;
 
 class PrototypeLogPage extends StatefulWidget {
   const PrototypeLogPage({super.key});
@@ -18,7 +22,7 @@ class PrototypeLogPage extends StatefulWidget {
 }
 
 class _PrototypeLogPageState extends State<PrototypeLogPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _teal = Color(0xFF2BBFB3);
   static const _amber = Color(0xFFFBBF24);
   static const _red = Color(0xFFEF3E23);
@@ -27,9 +31,12 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   final _recorder = AudioRecorder();
   final _observationService = const ObservationService();
+  final _pcmChunks = BytesBuilder();
+  StreamSubscription<Uint8List>? _pcmSubscription;
 
   @override
   void dispose() {
+    _pcmSubscription?.cancel();
     _recorder.dispose();
     super.dispose();
   }
@@ -37,33 +44,65 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   Future<void> _startRecording() async {
     if (!await _recorder.hasPermission()) return;
 
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/voice_log_${DateTime.now().millisecondsSinceEpoch}.wav';
+    _pcmChunks.clear();
 
-    // WAV/LINEAR16, not AAC: Google Cloud Speech-to-Text (apps/api) doesn't
-    // support AAC/M4A at all. Sample rate must match transcribe.js's
-    // sampleRateHertz.
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
-      path: path,
+    // Raw PCM streaming (not start()+a file path) so this works on every
+    // platform, including web — record's path-based mode needs a real
+    // filesystem (via path_provider), which web doesn't have; a temp-file
+    // path there throws immediately. The container-less PCM chunks get
+    // wrapped into a proper .wav (see wav.dart) once recording stops and
+    // the total length is known.
+    //
+    // pcm16bits, not wav/AAC: Google Cloud Speech-to-Text (apps/api)
+    // doesn't support AAC/M4A at all, and streaming can't emit a WAV
+    // container mid-recording anyway (its header needs the final byte
+    // count). Sample rate must match transcribe.js's sampleRateHertz.
+    final stream = await _recorder.startStream(
+      const RecordConfig(encoder: AudioEncoder.pcm16bits, sampleRate: _sampleRate, numChannels: _numChannels),
     );
+    _pcmSubscription = stream.listen(_pcmChunks.add);
     setState(() => _isHolding = true);
   }
 
   Future<void> _stopRecordingAndSubmit() async {
-    final path = await _recorder.stop();
+    await _recorder.stop();
+    await _pcmSubscription?.cancel();
+    _pcmSubscription = null;
+
+    final pcmData = _pcmChunks.takeBytes();
     setState(() {
       _isHolding = false;
-      _isProcessing = path != null;
+      _isProcessing = pcmData.isNotEmpty;
     });
-    if (path == null) return;
+    if (pcmData.isEmpty) return;
+
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) {
+      setState(() => _isProcessing = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a profile before logging.')),
+      );
+      return;
+    }
 
     try {
-      final result = await _observationService.submitVoiceLog(File(path));
+      final wavBytes = wrapPcmAsWav(pcmData, sampleRate: _sampleRate, numChannels: _numChannels);
+      // Returns as soon as processing has started server-side, not once
+      // it finishes (see observation_service.dart) — no category summary
+      // to show yet, just confirm the recording was received. The chart
+      // below updates on its own via the weeklySummaries listener once
+      // the background job's rollup completes.
+      await _observationService.submitVoiceLog(
+        wavBytes,
+        householdId: householdId,
+        careRecipientId: careRecipientId,
+      );
       if (!mounted) return;
-      final categories = (result['categories'] as List?)?.join(', ') ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logged: $categories')),
+        const SnackBar(content: Text('Logged — processing...')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -77,6 +116,9 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   Future<void> _cancelRecording() async {
     await _recorder.cancel();
+    await _pcmSubscription?.cancel();
+    _pcmSubscription = null;
+    _pcmChunks.clear();
     setState(() => _isHolding = false);
   }
 
@@ -84,12 +126,18 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
   // or doesn't exist yet (e.g. before the first voice log of the week).
   static const _neutralWeek = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get _weeklySummaryStream =>
-      FirebaseFirestore.instance
-          .doc(
-            'households/$demoHouseholdId/careRecipients/$demoCareRecipientId/weeklySummaries/${currentWeekKey()}',
-          )
-          .snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? get _weeklySummaryStream {
+    final profile = SelectedProfile.instance;
+    final householdId = profile.householdId;
+    final careRecipientId = profile.careRecipient?.id;
+    if (householdId == null || careRecipientId == null) return null;
+
+    return FirebaseFirestore.instance
+        .doc(
+          'households/$householdId/careRecipients/$careRecipientId/weeklySummaries/${currentWeekKey()}',
+        )
+        .snapshots();
+  }
 
   static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
     final raw = trendSeries?[key] as List?;
@@ -99,7 +147,11 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: SelectedProfile.instance,
+      builder: (context, _) {
+        final name = SelectedProfile.instance.careRecipient?.displayName ?? 'them';
+        return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -108,7 +160,7 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
             const SizedBox(height: 16),
             const _Header(),
             const SizedBox(height: 28),
-            Text('How did Lola Rosa sleep,\neat and feel today?',
+            Text('How did $name sleep,\neat and feel today?',
                 style: AppTextStyles.heading(fontSize: 26).copyWith(color: Colors.black)),
             const SizedBox(height: 8),
             Text('Speak in your own language. One minute\nis enough.',
@@ -204,6 +256,8 @@ class _PrototypeLogPageState extends State<PrototypeLogPage> {
       ),
       bottomNavigationBar: const _BottomNav(activeIndex: 2),
     );
+      },
+    );
   }
 }
 
@@ -251,20 +305,28 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final recipient = SelectedProfile.instance.careRecipient;
     return Row(children: [
       GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Container(width: 38, height: 38,
           decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text('LR', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
+          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
       ),
       const SizedBox(width: 10),
       Expanded(child: GestureDetector(
-        onTap: () => context.push('/patients/lola-rosa'),
+        onTap: () => context.push('/profiles'),
         child: Row(children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Lola Rosa', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            Text('82 · speaks Hokkien', style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500)),
+            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            if (recipient != null)
+              Text(
+                [
+                  if (recipient.age != null) '${recipient.age}',
+                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
+                ].join(' · '),
+                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+              ),
           ]),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),

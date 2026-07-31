@@ -1,6 +1,6 @@
 {
   "name": "kalinga-firestore-schema-package",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Import-ready Cloud Firestore schema, reference seed, security rules, indexes, and validation tools for Kalinga.",
@@ -12,6 +12,7 @@
     "seed:reference": "node scripts/seed-firestore.mjs data/reference-seed.json",
     "seed:demo": "node scripts/seed-firestore.mjs data/demo-seed.json --allow-demo",
     "deploy:firebase": "npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage",
+    "deploy:functions": "npx firebase-tools deploy --only functions",
     "emulators": "npx firebase-tools emulators:start",
     "generate:contracts": "node scripts/generate-contracts.mjs",
     "check:contracts": "node scripts/generate-contracts.mjs --check"

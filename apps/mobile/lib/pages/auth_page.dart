@@ -1,31 +1,55 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/family_viewer_service.dart';
+import '../state/dev_bypass.dart';
+import '../state/selected_profile.dart';
+import '../state/session_role.dart';
 import '../theme.dart';
+import '../widgets/back_button.dart';
 
 enum _AuthMode { register, login }
 
 /// Screen 03 · Sign in / register (`/auth`).
-/// Optional — reachable from Settings. Uses Firebase Auth email+password
-/// directly from the client; the app runs unauthenticated until then.
+/// Reached from RoleSelectPage's caregiver fork (register or login) or its
+/// family login fork. A real (non-anonymous) account is mandatory — every
+/// app route redirects back to the welcome flow until one exists (see
+/// router.dart); the "Skip (dev)" button is a debug-build-only escape
+/// hatch. [asFamilyMember] only affects the login branch's post-success
+/// routing — a fresh family sign-up goes through
+/// FamilyCodePage/FamilyRegisterPage instead, never this screen's register.
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key});
+  final bool startInLoginMode;
+  final bool asFamilyMember;
+
+  const AuthPage({super.key, this.startInLoginMode = false, this.asFamilyMember = false});
 
   @override
   State<AuthPage> createState() => _AuthPageState();
 }
 
 class _AuthPageState extends State<AuthPage> {
-  static const _bg = Color(0xFFF5F0E8);
+  static const _bg = Color(0xFFFFFFFF);
   static const _red = Color(0xFFEF3E23);
 
-  _AuthMode _mode = _AuthMode.register;
+  final _familyViewerService = const FamilyViewerService();
+
+  late _AuthMode _mode;
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.startInLoginMode ? _AuthMode.login : _AuthMode.register;
+  }
 
   @override
   void dispose() {
@@ -54,18 +78,70 @@ class _AuthPageState extends State<AuthPage> {
     try {
       final auth = FirebaseAuth.instance;
       if (isRegister) {
-        final credential = await auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        final anonymousUser = auth.currentUser;
+        final emailCredential = EmailAuthProvider.credential(email: email, password: password);
+
+        // The language screen is the very first thing anyone sees, before
+        // any sign-in — so by the time a caregiver reaches this screen
+        // she's almost always already anonymous, likely with real logs
+        // already saved under that UID. Link the email/password credential
+        // onto the existing anonymous account instead of creating a new
+        // one: same UID before and after, so the household/data it already
+        // bootstrapped (see main.dart) stays reachable rather than being
+        // orphaned under a UID nobody will ever authenticate as again.
+        final credential = anonymousUser != null && anonymousUser.isAnonymous
+            ? await anonymousUser.linkWithCredential(emailCredential)
+            : await auth.createUserWithEmailAndPassword(email: email, password: password);
         await credential.user?.updateDisplayName(name);
       } else {
         await auth.signInWithEmailAndPassword(email: email, password: password);
       }
       if (!mounted) return;
-      context.go('/home');
+
+      // Family members have no household of their own — running
+      // SelectedProfile.initialize() here would POST /households/bootstrap
+      // and create a spurious caregiver household under their UID. Their
+      // viewer resolution goes through FamilyViewerService instead.
+      if (!isRegister && widget.asFamilyMember) {
+        await _routeFamilyMemberAfterLogin();
+        return;
+      }
+
+      // Caregiver path. Login (or the no-anonymous-session register
+      // fallback above) lands on a different UID than whatever was active
+      // before — re-run bootstrap for it, or every household-scoped call
+      // 403s until the app restarts. A no-op re-sync when linking kept the
+      // same UID.
+      await SessionRole.instance.set(SessionRole.caregiver);
+      await SelectedProfile.instance.initialize();
+      if (!mounted) return;
+      // Not '/home' directly: a brand-new account still needs onboarding
+      // (/language, /patient). A returning caregiver with an existing
+      // profile gets auto-redirected straight to /home from there anyway
+      // (see router.dart's SelectedProfile-based bypass).
+      context.go('/language');
     } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message ?? 'Something went wrong. Try again.');
+      // Plain words only — Firebase's default messages are jargon
+      // ("The supplied auth credential is incorrect, malformed or has
+      // expired") aimed at developers, not a caregiver on her phone.
+      final String message;
+      switch (e.code) {
+        case 'credential-already-in-use':
+        case 'email-already-in-use':
+          message = 'That email is already registered — try signing in instead.';
+        case 'invalid-credential':
+        case 'wrong-password':
+        case 'user-not-found':
+        case 'INVALID_LOGIN_CREDENTIALS':
+          message = 'Wrong email or password. Check both and try again.';
+        case 'invalid-email':
+          message = 'That email doesn\'t look right. Check it and try again.';
+        case 'network-request-failed':
+          message = 'No connection. Check your internet and try again.';
+        default:
+          message = e.message ?? 'Something went wrong. Try again.';
+      }
+      setState(() => _error = message);
     } catch (_) {
       setState(() => _error = 'Could not reach the server. Check your connection.');
     } finally {
@@ -73,7 +149,46 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  void _skip() => context.canPop() ? context.pop() : context.go('/home');
+  // Debug-build-only escape hatch (see class doc comment). '/language',
+  // not '/home' — same reasoning as the real-account path in _submit().
+  // Bootstraps explicitly because main.dart no longer does it for
+  // account-less sessions; without this the dev path has no householdId and
+  // "add a profile" throws.
+  void _skipDev() {
+    DevBypass.instance.skip();
+    unawaited(SelectedProfile.instance.initialize());
+    context.go('/language');
+  }
+
+  Future<void> _routeFamilyMemberAfterLogin() async {
+    try {
+      final recipients = await _familyViewerService.resolveViewableRecipients();
+      // Persist the surface even for the zero-recipient case — this account
+      // signed in through the family fork, and restarting the app must not
+      // route it through the caregiver bootstrap path.
+      await SessionRole.instance.set(SessionRole.family);
+      if (!mounted) return;
+
+      if (recipients.isEmpty) {
+        setState(() {
+          _error = 'We couldn\'t find any records linked to this account yet. '
+              'If a caregiver shared a code with you, use that instead.';
+        });
+        return;
+      }
+      if (recipients.length == 1) {
+        context.go('/viewer/${recipients.first.careRecipient.id}');
+        return;
+      }
+      context.go('/family-recipients', extra: recipients);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Signed in, but couldn\'t load your family records. Check your connection and try again, '
+            'or use a code from the caregiver instead.';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,21 +202,15 @@ class _AuthPageState extends State<AuthPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
+
+              // ── Back ──────────────────────────────────────────────────
+              const Align(alignment: Alignment.centerLeft, child: AppBackButton()),
+
+              const SizedBox(height: 20),
 
               // ── Logo ──────────────────────────────────────────────────
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Center(
-                  child: Text('K', style: AppTextStyles.heading(fontSize: 28).copyWith(color: _red)),
-                ),
-              ),
+              Image.asset('assets/branding/kalinga-logo-app.png', width: 56, height: 56),
 
               const SizedBox(height: 20),
 
@@ -113,7 +222,7 @@ class _AuthPageState extends State<AuthPage> {
               const SizedBox(height: 8),
               Text(
                 isRegister
-                    ? 'Only needed to link the family. Two fields\nand a password.'
+                    ? 'So the family you care for can see your reports. Takes less than a minute.'
                     : 'Sign in to keep sending your logs to the\nfamily you already invited.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600, height: 1.5),
@@ -165,7 +274,7 @@ class _AuthPageState extends State<AuthPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  isRegister ? 'Write it somewhere safe. We cannot see it.' : 'At least 6 characters.',
+                  isRegister ? 'Save this somewhere safe — we can\'t reset it for you.' : 'At least 6 characters.',
                   style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500),
                 ),
               ),
@@ -176,6 +285,19 @@ class _AuthPageState extends State<AuthPage> {
                   _error!,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.body(fontSize: 13).copyWith(color: _red),
+                ),
+              ],
+              if (_error != null && widget.asFamilyMember) ...[
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => context.push('/family-code'),
+                  child: Text(
+                    'Use a code instead',
+                    style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(
+                      color: Colors.black87,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ],
 
@@ -208,21 +330,29 @@ class _AuthPageState extends State<AuthPage> {
 
               const SizedBox(height: 16),
 
-              GestureDetector(
-                onTap: _submitting ? null : _skip,
-                child: Text(
-                  'Skip for now',
-                  style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87),
+              if (kDebugMode) ...[
+                GestureDetector(
+                  onTap: _submitting ? null : _skipDev,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      border: Border.all(color: Colors.orange.shade300),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Skip (dev)',
+                      style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.orange.shade800),
+                    ),
+                  ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              Text(
-                'You can use Kalinga without an account. Sign in only\nwhen you want the family to read your logs.',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500, height: 1.5),
-              ),
+                const SizedBox(height: 16),
+                Text(
+                  'Debug build only — real builds require an account.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.orange.shade700),
+                ),
+              ],
 
               const SizedBox(height: 24),
             ],

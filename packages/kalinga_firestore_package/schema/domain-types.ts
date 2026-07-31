@@ -372,6 +372,37 @@ export interface ModelPolicyDocument extends AuditFields {
 }
 
 /**
+ * Firestore path: ragSources/{sourceId}
+ * Raw RAG knowledge-base source documents (Taiwan health authority, WHO, peer-reviewed research, ...) that back the symptom-checker and /rag/ask. Chunked + embedded into ragChunks by apps/api/src/rag/ingest.js.
+ * Client read policy: none; client write policy: serverOnly.
+ */
+export interface RagSourceDocument extends AuditFields {
+  title: string;
+  publisher: string;
+  url: string;
+  retrievedAt: string;
+  category: string;
+  text: string;
+}
+
+/**
+ * Firestore path: ragChunks/{chunkId}
+ * Chunked + embedded RAG corpus, derived from ragSources. Retrieved by cosine similarity against a query embedding for grounded symptom-checker/RAG answers.
+ * Client read policy: none; client write policy: serverOnly.
+ */
+export interface RagChunkDocument {
+  sourceId: string;
+  sourceTitle: string;
+  sourcePublisher: string;
+  sourceUrl: string;
+  sourceRetrievedAt: string;
+  sourceCategory: string;
+  chunkIndex: number;
+  text: string;
+  embedding: number[];
+}
+
+/**
  * Firestore path: organizations/{organizationId}
  * Partner NGO, agency, clinic, hospital, community center, or research organization.
  * Client read policy: authenticatedLimited; client write policy: serverOnly.
@@ -1531,6 +1562,8 @@ export interface DocumentByPathPattern {
   "safetyRuleSets/{ruleSetId}/rules/{ruleId}": SafetyRuleDocument;
   "promptTemplates/{templateId}": PromptTemplateDocument;
   "modelPolicies/{policyId}": ModelPolicyDocument;
+  "ragSources/{sourceId}": RagSourceDocument;
+  "ragChunks/{chunkId}": RagChunkDocument;
   "organizations/{organizationId}": OrganizationDocument;
   "organizations/{organizationId}/members/{uid}": OrganizationMemberDocument;
   "organizations/{organizationId}/sites/{siteId}": OrganizationSiteDocument;

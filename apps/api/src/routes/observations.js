@@ -3,10 +3,17 @@ const { Router } = require('express');
 const firebase = require('../firebase');
 const { requireAuth } = require('../middleware/auth');
 const { isCaregiverAssigned } = require('../lib/authorizeCaregiver');
-const { transcribeAudio, STT_LANGUAGE_CODES } = require('../lib/transcribe');
+const { STT_LANGUAGE_CODES } = require('../lib/transcribe');
+// Namespace require (not destructured) so tests can mock
+// processObservationJob.processObservationJob directly.
+const processObservationJobLib = require('../lib/processObservationJob');
+const { timestampId } = require('../lib/readableId');
 const { translateToMandarin } = require('../lib/translate');
-const { extractObservation } = require('../lib/extractObservation');
 const { buildObservationDocument } = require('../lib/buildObservationDocument');
+const symptomTriage = require('../lib/symptomTriage');
+const rollupDailySummary = require('../lib/rollupDailySummary');
+const rollupWeeklySummary = require('../lib/rollupWeeklySummary');
+const { currentWeekKey, currentWeekStartUtc, dateKeyOf } = require('../lib/weekKey');
 
 const router = Router();
 
@@ -49,9 +56,16 @@ router.post(
 
     const observationId = firebase.db
       .collection(`households/${householdId}/careRecipients/${careRecipientId}/observations`)
-      .doc().id;
+      .doc(timestampId()).id;
 
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
+
+    // Recorded so /process can rebuild storagePath itself instead of
+    // trusting whatever path the client sends it — otherwise a caller could
+    // point processing at an arbitrary object in the bucket.
+    await firebase.db
+      .doc(`households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`)
+      .set({ status: 'pendingUpload', audioExtension: extension, createdAt: new Date() });
 
     const expiresAt = Date.now() + UPLOAD_URL_TTL_MS;
     const [uploadUrl] = await firebase
@@ -64,17 +78,23 @@ router.post(
 );
 
 // Caregiver's phone calls this once the raw PUT to the signed URL finishes.
-// Synchronous for now (simplest to build/test); revisit as a Storage-triggered
-// background job if processing time becomes a problem for the UI.
+// Responds as soon as the upload is confirmed valid — the actual pipeline
+// (Speech-to-Text, then translate+extract, then rollup) runs afterward as
+// a background job (see lib/processObservationJob.js) instead of blocking
+// this response, since STT + LLM extraction were taking long enough to
+// make the caregiver wait through the whole thing before seeing "Logged."
+// The observation doc's `status` field tracks progress
+// (processing -> ready, or cancelled + processingError on failure) for
+// anything that wants to reflect that later (e.g. a Firestore listener).
 router.post(
   '/households/:householdId/care-recipients/:careRecipientId/observations/:observationId/process',
   requireAuth,
   async (req, res) => {
     const { householdId, careRecipientId, observationId } = req.params;
-    const { storagePath, locale } = req.body || {};
+    const { locale } = req.body || {};
 
-    if (!storagePath || !locale) {
-      return res.status(400).json({ error: 'storagePath and locale are required' });
+    if (!locale) {
+      return res.status(400).json({ error: 'locale is required' });
     }
     if (!STT_LANGUAGE_CODES[locale]) {
       return res.status(400).json({
@@ -91,43 +111,152 @@ router.post(
       return res.status(403).json({ error: 'Not an active caregiver for this care recipient' });
     }
 
-    try {
-      const bucketName = firebase.getBucket().name;
-      const gcsUri = `gs://${bucketName}/${storagePath}`;
-
-      const { text: transcript } = await transcribeAudio({ gcsUri, locale });
-      if (!transcript.trim()) {
-        return res.status(422).json({
-          error: 'No speech detected in recording',
-          detail: 'Try recording again — speak clearly for at least a couple seconds.',
-        });
-      }
-
-      // Translation and LLM extraction both only need the transcript —
-      // run them in parallel to cut ~2-4s off the response time.
-      const [{ text: translatedText }, extraction] = await Promise.all([
-        translateToMandarin({ text: transcript, sourceLocale: locale, projectId: firebase.projectId }),
-        extractObservation({ transcript }),
-      ]);
-
-      const observationDoc = buildObservationDocument({
-        uid: req.uid,
-        locale,
-        transcript,
-        translatedText,
-        extraction,
-      });
-      observationDoc.originalAudioAssetId = storagePath;
-
-      await firebase.db
-        .doc(`households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`)
-        .set(observationDoc);
-
-      res.json({ observationId, transcript, translatedText, ...extraction });
-    } catch (err) {
-      console.error('observation processing failed:', err);
-      res.status(502).json({ error: 'Processing failed', detail: err.message });
+    // storagePath is rebuilt server-side from the extension recorded at
+    // upload-url time — never trust a client-supplied path, since that would
+    // let a caller point transcription at an arbitrary object in the bucket.
+    const observationRef = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`,
+    );
+    const observationSnap = await observationRef.get();
+    if (!observationSnap.exists || observationSnap.data().status !== 'pendingUpload') {
+      return res.status(404).json({ error: 'No upload found for this observation' });
     }
+    const extension = observationSnap.data().audioExtension;
+    const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}/audio.${extension}`;
+
+    await observationRef.update({ status: 'processing', updatedAt: new Date() });
+    res.json({ observationId, status: 'processing' });
+
+    processObservationJobLib.processObservationJob({
+      householdId,
+      careRecipientId,
+      observationId,
+      uid: req.uid,
+      locale,
+      storagePath,
+    }).catch((err) => {
+      // processObservationJob already catches its own errors and writes
+      // them to the doc — this is a last-resort net for a bug in that
+      // catch handling itself, so a failure can never be fully silent.
+      console.error(`unhandled error from processObservationJob (${observationRef.path}):`, err);
+    });
+  },
+);
+
+// F1 · Structured symptom check-in.
+//
+// Additive endpoint. The voice pipeline above cannot serve this: it starts
+// from an audio upload, and a tap-based triage has no audio. Everything
+// downstream is reused unchanged — same observations collection, same
+// document builder, same daily/weekly rollups, so a check-in shows up in
+// the family viewer and the trend charts exactly like a voice log.
+//
+// Note what is NOT here: no LLM. Urgency comes from lib/symptomTriage.js,
+// which is a fixed table (see the reasoning in that file). The client sends
+// which symptom and which yes/no answers were tapped; the server recomputes
+// the assessment itself rather than trusting a client-sent urgency, since a
+// stale or tampered client must not be able to downgrade an emergency.
+router.post(
+  '/households/:householdId/care-recipients/:careRecipientId/observations/symptom-check',
+  requireAuth,
+  async (req, res) => {
+    const { householdId, careRecipientId } = req.params;
+    const { symptomKey, answers, note, locale } = req.body || {};
+
+    if (!symptomTriage.SYMPTOMS[symptomKey]) {
+      return res.status(400).json({
+        error: `Unknown symptomKey. Allowed: ${Object.keys(symptomTriage.SYMPTOMS).join(', ')}`,
+      });
+    }
+    if (!locale) {
+      return res.status(400).json({ error: 'locale is required' });
+    }
+
+    const assigned = await isCaregiverAssigned({ householdId, careRecipientId, uid: req.uid });
+    if (!assigned) {
+      return res.status(403).json({ error: 'Not an active caregiver for this care recipient' });
+    }
+
+    const assessment = symptomTriage.assessSymptom({ symptomKey, answers });
+    const summaryText = symptomTriage.buildSummaryText({ symptomKey, answers, note });
+
+    // The whole point of the feature for the family: they read it in
+    // Mandarin. If translation fails the check-in must still be recorded —
+    // losing an urgent observation because a translation API blipped would
+    // be the worst possible trade.
+    let translatedText = null;
+    let translationError = null;
+    try {
+      ({ text: translatedText } = await translateToMandarin({
+        text: summaryText,
+        sourceLocale: locale,
+        projectId: firebase.projectId,
+      }));
+    } catch (err) {
+      translationError = err.message;
+      console.error('symptom-check: translation failed, storing untranslated:', err);
+    }
+
+    const observationId = timestampId();
+    const observationRef = firebase.db.doc(
+      `households/${householdId}/careRecipients/${careRecipientId}/observations/${observationId}`,
+    );
+
+    const observationDoc = buildObservationDocument({
+      uid: req.uid,
+      locale,
+      transcript: summaryText,
+      translatedText: translatedText ?? summaryText,
+      inputMode: 'structuredForm',
+      extraction: {
+        categories: [assessment.category],
+        comparisonToUsual: 'worse',
+        structuredObservation: {
+          summary: summaryText,
+          symptomKey,
+          urgency: assessment.urgency,
+          // Scores stay neutral rather than guessed: this check-in asked
+          // about one symptom, so claiming to know how she slept would
+          // pollute the trend chart with invented data. The exception is
+          // the one the caregiver actually answered about.
+          sleepQuality: 0.5,
+          appetiteLevel: symptomKey === 'notEating' ? 0.1 : 0.5,
+          moodScore: 0.5,
+        },
+        safetyAssessment: {
+          concernLevel: assessment.concernLevel,
+          concerns: assessment.concerns,
+          recommendFollowUp: assessment.recommendFollowUp,
+        },
+      },
+    });
+    if (translationError) observationDoc.processingError = translationError;
+
+    await observationRef.set(observationDoc);
+
+    await Promise.all([
+      rollupDailySummary.computeAndSaveDailySummary({
+        householdId,
+        careRecipientId,
+        dateKey: dateKeyOf(new Date()),
+      }),
+      rollupWeeklySummary.computeAndSaveWeeklySummary({
+        householdId,
+        careRecipientId,
+        weekKey: currentWeekKey(),
+        periodStart: currentWeekStartUtc().toISOString(),
+      }),
+    ]);
+
+    res.json({
+      observationId,
+      urgency: assessment.urgency,
+      concernLevel: assessment.concernLevel,
+      concerns: assessment.concerns,
+      action: symptomTriage.ACTION_TEXT[assessment.urgency],
+      summaryText,
+      translatedText,
+    });
   },
 );
 

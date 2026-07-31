@@ -1,53 +1,92 @@
-/// Resolves and accepts family-viewer invite tokens (screen 16 → 17).
-///
-/// `households/{householdId}/invitations/{invitationId}` is `serverOnly` for
-/// writes and `householdAdminsOnly` for reads in firestore.rules — an
-/// unauthenticated invitee can't look up or accept an invite straight from
-/// the Flutter client. The real backend for this is the Node/Express API in
-/// apps/api (`GET /invites/:token`, `POST /invites/:token/accept`), which
-/// isn't implemented yet (apps/api has no source files, only package.json).
-///
-/// This class is the seam: it keeps that exact contract so the UI can be
-/// built and demoed today, and swapping the two methods below for real HTTP
-/// calls later doesn't touch anything else in the app.
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../api_config.dart';
+import 'auth_token.dart';
+
+/// Resolves and accepts household invite tokens (family or caregiver role).
+/// See apps/api/src/routes/invites.js for the backend — this is a thin
+/// HTTP wrapper, no logic lives here.
+/// Shape of GET /invites/:code — a pure shared-secret join code since
+/// b10bcd9: no invitee identity (email) is attached, and the raw code is
+/// never echoed back (only its hash is stored server-side).
 class InviteDetails {
-  final String token;
+  final String intendedRole;
   final String inviterName;
-  final String patientId;
-  final String patientName;
-  final String email;
+  final String? patientId;
+  final String? patientName;
 
   const InviteDetails({
-    required this.token,
+    required this.intendedRole,
     required this.inviterName,
     required this.patientId,
     required this.patientName,
-    required this.email,
   });
+
+  factory InviteDetails.fromJson(Map<String, dynamic> json) => InviteDetails(
+        intendedRole: json['intendedRole'] as String? ?? 'family',
+        inviterName: json['inviterName'] as String? ?? 'A caregiver',
+        patientId: json['patientId'] as String?,
+        patientName: json['patientName'] as String?,
+      );
 }
 
 class InviteService {
-  /// TODO(api): call `GET /invites/:token` once apps/api exists.
+  /// GET /invites/:token — public, no auth (the invitee has no Firebase
+  /// account yet at this point). Throws if the invite doesn't exist, has
+  /// expired, or was already used.
   Future<InviteDetails> fetchInvite(String token) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    return InviteDetails(
-      token: token,
-      inviterName: 'Siti',
-      patientId: 'lola-rosa',
-      patientName: '羅莎奶奶',
-      email: 'meiling.chen@email.com',
-    );
+    final res = await http.get(Uri.parse('$apiBaseUrl/invites/$token'));
+    if (res.statusCode != 200) {
+      throw Exception('Invite not found');
+    }
+    return InviteDetails.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  /// TODO(api): call `POST /invites/:token/accept` once apps/api exists.
-  /// That request is what actually links [viewerUid] into
-  /// `households/{householdId}/members` — only the Admin SDK can write
-  /// there, so this step needs an authenticated backend, not just Firebase
-  /// Auth on the client.
+  /// POST /invites/:token/accept — the invitee just created their Firebase
+  /// account client-side (FamilyRegisterPage); this call is what actually
+  /// links them into households/{id}/members via the Admin SDK. [viewerUid]
+  /// is accepted for API-shape compatibility with the caller but isn't
+  /// sent — the backend identifies the caller from the ID token itself.
   Future<void> acceptInvite({
     required String token,
     required String viewerUid,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 200));
+    final idToken = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/invites/$token/accept'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to accept invite: ${res.body}');
+    }
+  }
+
+  /// POST /households/:householdId/invitations — creates a new join code
+  /// for [intendedRole] ('family' or 'caregiver'), optionally scoped to a
+  /// single care recipient. Returns the raw code for the caregiver to share
+  /// verbally/by message; the backend doesn't tie it to any invitee email.
+  Future<String> createInvite({
+    required String householdId,
+    required String intendedRole,
+    String? careRecipientId,
+  }) async {
+    final idToken = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/$householdId/invitations'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'intendedRole': intendedRole,
+        if (careRecipientId != null) 'careRecipientId': careRecipientId,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to create invite: ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['code'] as String;
   }
 }

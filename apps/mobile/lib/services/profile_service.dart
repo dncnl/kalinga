@@ -1,0 +1,257 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../api_config.dart';
+import 'auth_token.dart';
+
+/// F5 · One standing fact a caregiver must not have to remember unaided —
+/// an allergy, a DNR, a trigger, a preference. Human-entered only: this is
+/// safety-critical, so nothing here is ever model-generated.
+class MustRememberItem {
+  final String category;
+  final String text;
+
+  const MustRememberItem({required this.category, required this.text});
+
+  factory MustRememberItem.fromJson(Map<String, dynamic> json) => MustRememberItem(
+        category: json['category'] as String? ?? 'other',
+        text: json['text'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'category': category, 'text': text};
+}
+
+/// The categories the backend accepts (see households.js).
+const kMustRememberCategories = <String, String>{
+  'allergy': 'Allergy',
+  'directive': 'Medical directive',
+  'sensory': 'Hearing / sight',
+  'trigger': 'Trigger',
+  'preference': 'Preference',
+  'other': 'Other',
+};
+
+class CareRecipient {
+  final String id;
+  final String displayName;
+  final int? age;
+  final List<String> preferredLanguages;
+  final List<String> conditions;
+  final List<MustRememberItem> mustRemember;
+
+  CareRecipient({
+    required this.id,
+    required this.displayName,
+    required this.age,
+    required this.preferredLanguages,
+    required this.conditions,
+    this.mustRemember = const [],
+  });
+
+  factory CareRecipient.fromJson(Map<String, dynamic> json) {
+    final careProfile = json['careProfile'] as Map<String, dynamic>? ?? {};
+    return CareRecipient(
+      id: json['id'] as String,
+      displayName: json['displayName'] as String,
+      age: careProfile['age'] as int?,
+      preferredLanguages: List<String>.from(json['preferredLanguages'] as List? ?? []),
+      conditions: List<String>.from(careProfile['conditions'] as List? ?? []),
+      mustRemember: ((careProfile['mustRemember'] as List?) ?? const [])
+          .map((m) => MustRememberItem.fromJson(m as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  /// Two-letter initials for the avatar circle, e.g. "Lola Rosa" -> "LR".
+  String get initials {
+    final parts = displayName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+  }
+}
+
+class ProfileService {
+  const ProfileService();
+
+  /// Finds or creates the caller's household. Idempotent — safe to call
+  /// every app start.
+  Future<String> bootstrapHousehold() async {
+    final token = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/bootstrap'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to bootstrap household: ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['householdId'] as String;
+  }
+
+  Future<List<CareRecipient>> listCareRecipients(String householdId) async {
+    final token = await getIdToken();
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to list care recipients: ${res.body}');
+    }
+    final list = (jsonDecode(res.body) as Map<String, dynamic>)['careRecipients'] as List;
+    return list.map((r) => CareRecipient.fromJson(r as Map<String, dynamic>)).toList();
+  }
+
+  Future<CareRecipient> createCareRecipient(
+    String householdId, {
+    required String displayName,
+    int? age,
+    List<String> preferredLanguages = const [],
+    List<String> conditions = const [],
+  }) async {
+    final token = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'displayName': displayName,
+        'age': age,
+        'preferredLanguages': preferredLanguages,
+        'conditions': conditions,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to create care recipient: ${res.body}');
+    }
+    final id = (jsonDecode(res.body) as Map<String, dynamic>)['careRecipientId'] as String;
+    return CareRecipient(
+      id: id,
+      displayName: displayName,
+      age: age,
+      preferredLanguages: preferredLanguages,
+      conditions: conditions,
+    );
+  }
+
+  /// F5 · Replaces the "must remember" list. Its own call rather than a
+  /// parameter on [updateCareRecipient] because that one is driven by the
+  /// edit form and always sends every field; the PATCH route only applies
+  /// what it's given, so sending just this leaves name/age/conditions alone.
+  Future<void> updateMustRemember(
+    String householdId,
+    String careRecipientId,
+    List<MustRememberItem> items,
+  ) async {
+    final token = await getIdToken();
+    final res = await http.patch(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'mustRemember': items.map((i) => i.toJson()).toList()}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to save must-remember items: ${res.body}');
+    }
+  }
+
+  Future<void> updateCareRecipient(
+    String householdId,
+    String careRecipientId, {
+    required String displayName,
+    int? age,
+    List<String> preferredLanguages = const [],
+    List<String> conditions = const [],
+  }) async {
+    final token = await getIdToken();
+    final res = await http.patch(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'displayName': displayName,
+        'age': age,
+        'preferredLanguages': preferredLanguages,
+        'conditions': conditions,
+      }),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to update care recipient: ${res.body}');
+    }
+  }
+
+  /// Soft delete (archive) only — see apps/api/src/routes/households.js.
+  Future<void> deleteCareRecipient(String householdId, String careRecipientId) async {
+    final token = await getIdToken();
+    final res = await http.delete(
+      Uri.parse('$apiBaseUrl/households/$householdId/care-recipients/$careRecipientId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to delete care recipient: ${res.body}');
+    }
+  }
+
+  Future<List<HouseholdSummary>> listMyHouseholds() async {
+    final token = await getIdToken();
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/households/mine'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to list households: ${res.body}');
+    }
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final households = (body['households'] as List)
+        .map((h) => HouseholdSummary.fromJson(h as Map<String, dynamic>))
+        .toList();
+    return households;
+  }
+
+  /// GET /care-recipients/:id/household — mounted at the app root (no
+  /// /households prefix), resolves which household a recipient belongs to
+  /// from just its id. Built for a viewer who only has a recipient id
+  /// (e.g. ViewerPage, given only /viewer/:id).
+  Future<String> resolveHouseholdForCareRecipient(String careRecipientId) async {
+    final token = await getIdToken();
+    final res = await http.get(
+      Uri.parse('$apiBaseUrl/care-recipients/$careRecipientId/household'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to resolve household: ${res.body}');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['householdId'] as String;
+  }
+
+  Future<void> switchHousehold(String householdId) async {
+    final token = await getIdToken();
+    final res = await http.post(
+      Uri.parse('$apiBaseUrl/households/switch'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'householdId': householdId}),
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Failed to switch household: ${res.body}');
+    }
+  }
+}
+
+class HouseholdSummary {
+  final String id;
+  final String name;
+
+  HouseholdSummary({required this.id, required this.name});
+
+  factory HouseholdSummary.fromJson(Map<String, dynamic> json) =>
+      HouseholdSummary(id: json['id'] as String, name: json['name'] as String);
+}

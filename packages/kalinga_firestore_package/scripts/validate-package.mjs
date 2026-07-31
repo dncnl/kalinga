@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 
-const EXPECTED_SCHEMA_VERSION = '1.1.0';
+const EXPECTED_SCHEMA_VERSION = '1.2.0';
 const EXPECTED_DOCUMENT_PATHS = [
   "_schema/{version}",
   "appConfig/{configId}",
@@ -27,6 +27,8 @@ const EXPECTED_DOCUMENT_PATHS = [
   "safetyRuleSets/{ruleSetId}/rules/{ruleId}",
   "promptTemplates/{templateId}",
   "modelPolicies/{policyId}",
+  "ragSources/{sourceId}",
+  "ragChunks/{chunkId}",
   "organizations/{organizationId}",
   "organizations/{organizationId}/members/{uid}",
   "organizations/{organizationId}/sites/{siteId}",
@@ -132,7 +134,7 @@ async function main() {
 
   const paths = schema.collections.map((collection) => collection.path);
   exactSetEqual(paths, EXPECTED_DOCUMENT_PATHS, 'Authoritative document paths');
-  assert.equal(paths.length, 75, 'Kalinga 1.1.0 must retain all 75 document patterns.');
+  assert.equal(paths.length, 77, 'Kalinga 1.2.0 must retain all 77 document patterns.');
   for (const collectionPath of paths) {
     assert.ok(documentPathIsValid(collectionPath), `Invalid collection document pattern: ${collectionPath}`);
   }
@@ -141,9 +143,9 @@ async function main() {
   const interfaceNames = Object.values(manifest.documents).map((entry) => entry.interface);
   const documentHelpers = Object.values(manifest.documents).map((entry) => entry.documentHelper);
   const collectionHelpers = Object.values(manifest.documents).map((entry) => entry.collectionHelper);
-  assert.equal(new Set(interfaceNames).size, 75, 'Every document pattern must have a unique interface.');
-  assert.equal(new Set(documentHelpers).size, 75, 'Every document pattern must have a unique document helper.');
-  assert.equal(new Set(collectionHelpers).size, 75, 'Every document pattern must have a unique collection helper.');
+  assert.equal(new Set(interfaceNames).size, 77, 'Every document pattern must have a unique interface.');
+  assert.equal(new Set(documentHelpers).size, 77, 'Every document pattern must have a unique document helper.');
+  assert.equal(new Set(collectionHelpers).size, 77, 'Every document pattern must have a unique collection helper.');
 
   execFileSync(process.execPath, [path.join(root, 'scripts', 'generate-contracts.mjs'), '--check'], { stdio: 'pipe' });
 
@@ -162,14 +164,18 @@ async function main() {
 
   const schema10 = reference.documents.find((doc) => doc.path === '_schema/1.0.0');
   const schema11 = reference.documents.find((doc) => doc.path === '_schema/1.1.0');
-  const migration = reference.documents.find((doc) => doc.path === 'migrations/schema-1.0.0-to-1.1.0');
-  assert.ok(schema10 && schema11 && migration, 'Version history and 1.1.0 migration records are required.');
+  const schema12 = reference.documents.find((doc) => doc.path === '_schema/1.2.0');
+  const migration11 = reference.documents.find((doc) => doc.path === 'migrations/schema-1.0.0-to-1.1.0');
+  const migration12 = reference.documents.find((doc) => doc.path === 'migrations/schema-1.1.0-to-1.2.0');
+  assert.ok(schema10 && schema11 && schema12 && migration11 && migration12, 'Version history and 1.2.0 migration records are required.');
   assert.equal(schema10.data.active, false);
-  assert.equal(schema11.data.active, true);
-  assert.equal(schema11.data.collectionManifest.length, 75);
-  assert.equal(migration.data.status, 'completed');
-  assert.equal(migration.data.checkpoint.pathsRemoved, 0);
-  assert.equal(migration.data.checkpoint.fieldsRemoved, 0);
+  assert.equal(schema11.data.active, false);
+  assert.equal(schema12.data.active, true);
+  assert.equal(schema12.data.collectionManifest.length, 77);
+  assert.equal(migration11.data.status, 'completed');
+  assert.equal(migration12.data.status, 'completed');
+  assert.equal(migration12.data.checkpoint.pathsRemoved, 0);
+  assert.equal(migration12.data.checkpoint.fieldsRemoved, 0);
 
   const aiDiagnosisFlag = reference.documents.find((doc) => doc.path === 'featureFlags/aiDiagnosis');
   assert.ok(aiDiagnosisFlag, 'Missing explicit AI diagnosis safety flag.');

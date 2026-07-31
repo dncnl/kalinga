@@ -16,6 +16,10 @@ async function requireAuth(req, res, next) {
     req.uid = decoded.uid;
     next();
   } catch (err) {
+    // The client only ever sees the generic 401 below — the real reason
+    // (expired, wrong project audience, clock skew, malformed, etc) only
+    // goes to the server console, since it can hint at token internals.
+    console.error('requireAuth: verifyIdToken failed:', err.message);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
