@@ -62,10 +62,20 @@ final router = GoRouter(
     if (!profile.hasProfile) return null;
 
     // A caregiver with a restored profile shouldn't click through
-    // onboarding again, and a signed-in one shouldn't sit on the entry
+    // language selection again (re-picking it makes no sense once a
+    // profile exists), and a signed-in one shouldn't sit on the entry
     // funnel after an app restart (session persistence) — both go home.
-    final onboarding = loc == '/language' || loc == '/patient';
-    if (onboarding) return '/home';
+    //
+    // /patient is deliberately NOT included here even though it's also
+    // part of first-run onboarding: ProfilePickerPage's "Add another
+    // profile" button pushes /patient again for a caregiver who already
+    // has one (hasProfile == true), and this redirect ran before the page
+    // ever rendered, bouncing straight back to /home — the button looked
+    // completely broken. /patient itself already handles both create (no
+    // `editing` extra) and edit correctly regardless of hasProfile, and
+    // navigates itself on success (see prototype_patient_page.dart), so it
+    // doesn't need this guard's help.
+    if (loc == '/language') return '/home';
     final onWelcomeOrAuth = loc == '/' || loc == '/role' || loc == '/auth';
     if (hasRealAccount && onWelcomeOrAuth) return '/home';
     return null;
