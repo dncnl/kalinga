@@ -176,8 +176,24 @@ modified beyond the RAG system-prompt commit listed above.
         collected anywhere, so a fake number in a crisis is worse than no
         row at all. Mandarin phrasebook + **Hokkien caregiver→elder
         phrases** (the resolved known gap). Personal-phone caveat in the UI.
-  - [ ] F7 med OCR: move vision fallback chain to Vertex AI paid-model
-        pattern (match text-extraction path)
+  - [x] F7 med OCR moved to the Vertex AI paid-model pattern. Was a
+        hand-rolled `fetch` against a hardcoded list of three free-tier
+        OpenRouter vision models, falling through them on failure — the
+        last place a model was chosen at a call site. Now goes through
+        `llmClient` like every other model call (new
+        `generateStructuredFromImage`, same provider-swap-by-env-var
+        contract), so the schema is structurally enforced by Gemini instead
+        of the prompt begging for "ONLY valid JSON" and the code stripping
+        ``` fences by hand. Vertex reads the photo by `gs://` URI with the
+        project's own service account, so the bucket no longer needs a
+        signed read URL minted for a third party. Label/blister-pack OCR
+        only — the "never infer a dose from pill appearance" rule is now
+        asserted by a test, not just written in the prompt.
+        **Bug found while testing it:** the time filter was
+        `/^\d{2}:\d{2}$/`, which accepts "25:99"; `setUTCHours(25, 99)`
+        silently rolls into the next day, so a garbled scan could schedule
+        a dose at a time nobody chose. Tightened here and in the F2
+        reminder route, which had the same regex.
 - [ ] Phase 4 — demo path end-to-end on Android; final report; ask before
       merging to `main`
 

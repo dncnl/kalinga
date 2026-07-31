@@ -27,6 +27,11 @@ const router = Router();
 // other, with the typed label kept in `title`.
 const TASK_CATEGORIES = ['meal', 'exercise', 'medication', 'hydration', 'hygiene', 'mobility', 'other'];
 
+// Real clock times only. `\d{2}:\d{2}` would accept "25:99", and the
+// generate-today loop's setUTCHours would roll that into the next day —
+// a reminder at a time nobody set. Same guard as extractMedicationLabel.
+const CLOCK_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
 router.post(
   '/households/:householdId/care-recipients/:careRecipientId/tasks',
   requireAuth,
@@ -42,7 +47,7 @@ router.post(
       return res.status(400).json({ error: `category must be one of: ${TASK_CATEGORIES.join(', ')}` });
     }
     const cleanTimes = Array.isArray(times)
-      ? times.filter((t) => typeof t === 'string' && /^\d{2}:\d{2}$/.test(t))
+      ? times.filter((t) => typeof t === 'string' && CLOCK_TIME.test(t))
       : [];
     if (cleanTimes.length === 0) {
       return res.status(400).json({ error: 'times must contain at least one "HH:MM" entry' });

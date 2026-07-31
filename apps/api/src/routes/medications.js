@@ -10,7 +10,6 @@ const { slugId, timestampId } = require('../lib/readableId');
 const router = Router();
 
 const UPLOAD_URL_TTL_MS = 15 * 60 * 1000;
-const READ_URL_TTL_MS = 15 * 60 * 1000;
 const ALLOWED_PHOTO_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -229,13 +228,17 @@ router.post(
     const storagePath = `households/${householdId}/careRecipients/${careRecipientId}/medications/${medicationId}/label.${extension}`;
 
     try {
-      const expiresAt = Date.now() + READ_URL_TTL_MS;
-      const [imageUrl] = await firebase
-        .getBucket()
-        .file(storagePath)
-        .getSignedUrl({ version: 'v4', action: 'read', expires: expiresAt });
+      // gs:// URI, not a signed HTTPS one: Vertex AI reads the object with
+      // this project's own service account (same identity as Speech and
+      // Translate), so the bucket never needs a temporarily-fetchable
+      // public URL the way the old third-party vision call did.
+      const bucketName = firebase.getBucket().name;
+      const gcsUri = `gs://${bucketName}/${storagePath}`;
+      const mimeType = Object.keys(ALLOWED_PHOTO_TYPES).find(
+        (type) => ALLOWED_PHOTO_TYPES[type] === extension,
+      ) || 'image/jpeg';
 
-      const draft = await extractMedicationLabel({ imageUrl });
+      const draft = await extractMedicationLabel({ gcsUri, mimeType });
 
       const now = new Date();
 

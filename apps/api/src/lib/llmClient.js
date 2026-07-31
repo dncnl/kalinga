@@ -61,6 +61,33 @@ async function callVertexAIStructured({ system, prompt, schema, model }) {
   return JSON.parse(text);
 }
 
+// Vision + schema-constrained JSON. Vertex reads the image straight out of
+// the project's own bucket by gs:// URI, using the same service-account
+// identity as every other Google Cloud client here — so unlike the
+// OpenRouter path this needs no signed public-ish read URL at all.
+async function callVertexAIVisionStructured({ system, prompt, schema, model, gcsUri, mimeType }) {
+  const ai = module.exports.getVertexAIClient();
+  const response = await ai.models.generateContent({
+    model,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { fileData: { fileUri: gcsUri, mimeType } },
+        ],
+      },
+    ],
+    config: {
+      ...(system ? { systemInstruction: system } : {}),
+      responseMimeType: 'application/json',
+      responseJsonSchema: schema,
+    },
+  });
+  const text = response.text ?? '';
+  return JSON.parse(text);
+}
+
 async function callOpenRouter({ system, prompt, model }) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -117,6 +144,13 @@ const STRUCTURED_PROVIDERS = {
   openai: notImplementedStructured('openai'),
 };
 
+const VISION_PROVIDERS = {
+  vertexai: callVertexAIVisionStructured,
+  openrouter: notImplementedStructured('openrouter'),
+  anthropic: notImplementedStructured('anthropic'),
+  openai: notImplementedStructured('openai'),
+};
+
 // Plain chat completion: system prompt + user prompt in, text out. No
 // tool-calling here — see generateStructured for schema-constrained output.
 async function generateText({ system, prompt, provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL }) {
@@ -138,4 +172,30 @@ async function generateStructured({ system, prompt, schema, provider = DEFAULT_P
   return call({ system, prompt, schema, model });
 }
 
-module.exports = { generateText, generateStructured, getVertexAIClient, DEFAULT_PROVIDER, DEFAULT_MODEL };
+// Schema-constrained JSON output from an image in the project's own GCS
+// bucket. Same contract as generateStructured, plus [gcsUri]/[mimeType].
+// Used by the medication-label scan (see extractMedicationLabel.js).
+async function generateStructuredFromImage({
+  system,
+  prompt,
+  schema,
+  gcsUri,
+  mimeType,
+  provider = DEFAULT_PROVIDER,
+  model = DEFAULT_MODEL,
+}) {
+  const call = VISION_PROVIDERS[provider];
+  if (!call) {
+    throw new Error(`Unknown LLM_PROVIDER "${provider}". Valid: ${Object.keys(VISION_PROVIDERS).join(', ')}`);
+  }
+  return call({ system, prompt, schema, model, gcsUri, mimeType });
+}
+
+module.exports = {
+  generateText,
+  generateStructured,
+  generateStructuredFromImage,
+  getVertexAIClient,
+  DEFAULT_PROVIDER,
+  DEFAULT_MODEL,
+};
