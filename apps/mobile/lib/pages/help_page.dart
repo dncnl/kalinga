@@ -1,63 +1,375 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../state/selected_profile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme.dart';
+import '../data/phrasebook_data.dart';
+import '../data/content_sync_repository.dart';
 
-/// F6 · Emergency contacts + phrasebook (`/help`).
-///
-/// Every number here is a real, vetted, nationwide Taiwan service — no
-/// placeholders, because a caregiver in a crisis will dial whatever this
-/// screen shows. Deliberately NOT included: a "family contact" row. The
-/// household's own numbers aren't collected anywhere yet, and a fake one is
-/// worse than none.
-///
-/// Assumes this is the caregiver's PERSONAL phone. Many live-in workers use
-/// an employer-provided or employer-monitored handset; the note at the
-/// bottom of the screen says so plainly rather than pretending otherwise.
-class HelpPage extends StatelessWidget {
+class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
 
-  static const _bg = Color(0xFFFFFFFF);
+  @override
+  State<HelpPage> createState() => _HelpPageState();
+}
+
+class _HelpPageState extends State<HelpPage> {
+  static const _bg = Color(0xFFF5F0E8);
   static const _red = Color(0xFFEF3E23);
   static const _teal = Color(0xFF2BBFB3);
 
-  // Ordered by urgency: the two that save a life first, then the ones that
-  // protect the caregiver herself.
-  static const _contacts = [
+  static const _bundledNumbers = [
     _Contact(
-      number: '119',
-      name: 'Ambulance and fire',
-      nameZh: '救護車・消防',
-      subtitle: 'Life-threatening emergency',
-      urgent: true,
+      '119',
+      'Ambulance and fire',
+      'Ambulance and fire',
+      _red,
+      true,
+      displayOrder: 2,
     ),
     _Contact(
-      number: '110',
-      name: 'Police',
-      nameZh: '警察',
-      subtitle: 'Danger, violence, or crime',
-      urgent: true,
+      '1955',
+      'Labor helpline',
+      'Labor helpline',
+      Colors.black,
+      false,
+      displayOrder: 4,
+    ),
+    _Contact('110', 'Police', 'Police', _red, true, displayOrder: 1),
+    _Contact(
+      '1990',
+      'Foreigner hotline',
+      'Foreigner helpline',
+      Colors.black,
+      false,
+      displayOrder: 6,
     ),
     _Contact(
-      number: '1955',
-      name: 'Labor helpline',
-      nameZh: '勞工諮詢申訴專線',
-      subtitle: 'Free · 24 hours · your language',
-      // 1955 is staffed in Indonesian, Vietnamese, Thai and English as well
-      // as Mandarin — the one line here that is guaranteed to understand
-      // the caller. Unpaid wages, no rest days, abuse, contract problems.
-      urgent: false,
+      '0800474580',
+      'National Dementia Care Hotline',
+      'Dementia support',
+      Colors.black,
+      false,
+      displayOrder: 7,
     ),
     _Contact(
-      number: '0800024111',
-      display: '0800 024 111',
-      name: 'Foreign resident hotline',
-      nameZh: '外來人士在臺服務專線',
-      subtitle: 'Free · 24 hours · living, visa, and legal help',
-      urgent: false,
+      '1966',
+      'Long-Term Care Service Hotline',
+      'Long-term care',
+      Colors.black,
+      false,
+      displayOrder: 5,
+    ),
+    _Contact(
+      '1995',
+      'Lifeline (caregiver support)',
+      'Caregiver support',
+      Colors.black,
+      false,
+      displayOrder: 8,
+    ),
+    _Contact(
+      '165',
+      'Anti-Fraud Hotline',
+      'Danger or protection',
+      Colors.black,
+      false,
+      displayOrder: 9,
     ),
   ];
+
+  List<_Contact> _primaryContacts = [];
+  List<_Contact> _moreContacts = [];
+  List<PhrasebookEntry> _phrases = phrasebookSeed;
+
+  late final ContentSyncRepository<_Contact> _numbersRepo;
+  late final ContentSyncRepository<PhrasebookEntry> _phrasebookRepo;
+
+  _Contact _familyContact = const _Contact(
+    '0912 345 678',
+    "Rosa's daughter",
+    'Family contact',
+    _teal,
+    false,
+  );
+  _Contact _clinicContact = const _Contact(
+    '02 2595 3316',
+    'City health hotline',
+    'Medical advice',
+    _teal,
+    false,
+  );
+
+  late FlutterTts _flutterTts;
+  String? _speakingId;
+  bool _moreNumbersExpanded = false;
+  bool _ttsAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+    _loadContacts();
+    _initContentSync();
+  }
+
+  Future<void> _initContentSync() async {
+    _numbersRepo = ContentSyncRepository<_Contact>(
+      collectionPath: 'governmentServices',
+      cacheKey: 'government_services_cache',
+      fromJson: _Contact.fromJson,
+      toJson: (c) => c.toJson(),
+      bundledSeed: _bundledNumbers,
+    );
+    _phrasebookRepo = ContentSyncRepository<PhrasebookEntry>(
+      collectionPath: 'emergencyPhrasebooks/core-1.0.0/phrases',
+      cacheKey: 'emergency_phrases_cache',
+      fromJson: PhrasebookEntry.fromJson,
+      toJson: (p) => p.toJson(),
+      bundledSeed: phrasebookSeed,
+    );
+
+    // Initial load from cache or bundled seed
+    final numbers = await _numbersRepo.getInitial();
+    final phrases = await _phrasebookRepo.getInitial();
+
+    if (mounted) {
+      setState(() {
+        _primaryContacts = numbers
+            .where((c) => c.number == '119' || c.number == '1955')
+            .toList();
+        _moreContacts = numbers
+            .where((c) => c.number != '119' && c.number != '1955')
+            .toList();
+        _moreContacts.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+        _phrases = phrases;
+        _phrases.sort(
+          (a, b) => a.id.compareTo(b.id),
+        ); // Maintain display order or ID ordering
+      });
+    }
+
+    // Background sync
+    final updatedNumbers = await _numbersRepo.syncInBackground();
+    final updatedPhrases = await _phrasebookRepo.syncInBackground();
+
+    if (mounted) {
+      setState(() {
+        if (updatedNumbers != null) {
+          _primaryContacts = updatedNumbers
+              .where((c) => c.number == '119' || c.number == '1955')
+              .toList();
+          _moreContacts = updatedNumbers
+              .where((c) => c.number != '119' && c.number != '1955')
+              .toList();
+          _moreContacts.sort(
+            (a, b) => a.displayOrder.compareTo(b.displayOrder),
+          );
+        }
+        if (updatedPhrases != null) {
+          _phrases = updatedPhrases;
+          _phrases.sort((a, b) => a.id.compareTo(b.id));
+        }
+      });
+    }
+  }
+
+  Future<void> _loadContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _familyContact = _Contact(
+          prefs.getString('family_contact_number') ?? _familyContact.number,
+          _familyContact.name,
+          _familyContact.subtitle,
+          _familyContact.bg,
+          _familyContact.isLight,
+        );
+        _clinicContact = _Contact(
+          prefs.getString('clinic_contact_number') ?? _clinicContact.number,
+          _clinicContact.name,
+          _clinicContact.subtitle,
+          _clinicContact.bg,
+          _clinicContact.isLight,
+        );
+      });
+    }
+  }
+
+  Future<void> _showEditDialog(bool isFamily) async {
+    final contact = isFamily ? _familyContact : _clinicContact;
+    final numberController = TextEditingController(text: contact.number);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Edit ${contact.name}',
+            style: AppTextStyles.heading(fontSize: 18),
+          ),
+          content: TextField(
+            controller: numberController,
+            decoration: const InputDecoration(labelText: 'Phone Number'),
+            keyboardType: TextInputType.phone,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(numberController.text),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      if (isFamily) {
+        await prefs.setString('family_contact_number', result);
+        setState(() {
+          _familyContact = _Contact(
+            result,
+            _familyContact.name,
+            _familyContact.subtitle,
+            _familyContact.bg,
+            _familyContact.isLight,
+          );
+        });
+      } else {
+        await prefs.setString('clinic_contact_number', result);
+        setState(() {
+          _clinicContact = _Contact(
+            result,
+            _clinicContact.name,
+            _clinicContact.subtitle,
+            _clinicContact.bg,
+            _clinicContact.isLight,
+          );
+        });
+      }
+    }
+  }
+
+  Future<void> _initTts() async {
+    _flutterTts = FlutterTts();
+    await _flutterTts.setSpeechRate(0.6);
+
+    // Web TTS Voices load asynchronously, retry up to 10 times (1 second)
+    List<dynamic>? voices;
+    for (int i = 0; i < 10; i++) {
+      voices = await _flutterTts.getVoices;
+      if (voices != null && voices.isNotEmpty) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (voices == null || voices.isEmpty) {
+      debugPrint('TTS: No voices found after waiting.');
+      return;
+    }
+
+    // Find a Chinese voice
+    Map<dynamic, dynamic>? targetVoice;
+    for (var voice in voices) {
+      final locale = voice['locale']?.toString().toLowerCase() ?? '';
+      if (locale.contains('zh')) {
+        targetVoice = voice;
+        // Prefer Traditional Taiwan if available
+        if (locale == 'zh-tw' || locale == 'zh_tw') {
+          break;
+        }
+      }
+    }
+
+    if (targetVoice != null) {
+      debugPrint('TTS: Setting voice to $targetVoice');
+      await _flutterTts.setVoice({
+        "name": targetVoice["name"],
+        "locale": targetVoice["locale"],
+      });
+      if (mounted)
+        setState(() {
+          _ttsAvailable = true;
+        });
+    } else {
+      debugPrint('TTS: No Chinese voice found in browser.');
+    }
+
+    _flutterTts.setStartHandler(() {
+      if (mounted) setState(() {});
+    });
+
+    _flutterTts.setCompletionHandler(() {
+      if (mounted)
+        setState(() {
+          _speakingId = null;
+        });
+    });
+
+    _flutterTts.setErrorHandler((msg) {
+      if (msg == 'interrupted' || msg == 'canceled') {
+        // Expected: fires when a new phrase interrupts one already playing.
+        return;
+      }
+      debugPrint('TTS Error: $msg');
+      if (mounted)
+        setState(() {
+          _speakingId = null;
+        });
+    });
+  }
+
+  @override
+  void dispose() {
+    _flutterTts.stop();
+    super.dispose();
+  }
+
+  Future<void> _speak(PhrasebookEntry entry) async {
+    if (!_ttsAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chinese voice pack is not installed on this device.'),
+        ),
+      );
+      return;
+    }
+
+    if (_speakingId != null && _speakingId != entry.id) {
+      await _flutterTts.stop();
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    setState(() {
+      _speakingId = entry.id;
+    });
+
+    await _flutterTts.speak(entry.ttsPhrase);
+  }
+
+  Future<void> _makeCall(String number) async {
+    final cleanNumber = number.replaceAll(' ', '');
+    final uri = Uri.parse('tel:$cleanNumber');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Could not place call')));
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Could not place call')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,98 +378,388 @@ class HelpPage extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const SizedBox(height: 16),
-            _buildHeader(context),
-            const SizedBox(height: 28),
-            Text('Get help now', style: AppTextStyles.heading(fontSize: 32).copyWith(color: Colors.black)),
-            const SizedBox(height: 6),
-            Text('One tap calls. No menus.',
-                style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
-            const SizedBox(height: 20),
-
-            ..._contacts.map((c) => Padding(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              _buildHeader(context),
+              const SizedBox(height: 28),
+              Text(
+                'Get help now',
+                style: AppTextStyles.heading(
+                  fontSize: 32,
+                ).copyWith(color: Colors.black),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'One tap calls. No menus.',
+                style: AppTextStyles.body(
+                  fontSize: 14,
+                ).copyWith(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 20),
+              ..._primaryContacts.map(
+                (c) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _ContactCard(contact: c),
-                )),
-
-            const SizedBox(height: 12),
-            Text(
-              'These calls come from your own phone. If your employer holds '
-              'or checks your phone, use a friend\'s phone or a public phone.',
-              style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.grey.shade500, height: 1.5),
-            ),
-
-            const SizedBox(height: 32),
-
-            // ── Phrasebook ──────────────────────────────────────────────
-            Text('Say it in Mandarin', style: AppTextStyles.heading(fontSize: 24).copyWith(color: Colors.black)),
-            const SizedBox(height: 6),
-            Text('Show the screen, or read it out loud.',
-                style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600)),
-            const SizedBox(height: 14),
-            ..._emergencyPhrases.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PhraseCard(phrase: p, accent: _red),
-                )),
-
-            const SizedBox(height: 28),
-
-            // ── Hokkien (elder-facing) ──────────────────────────────────
-            // The gap nothing else in the app closes: pre-departure training
-            // covers Mandarin, but many elders in home care speak only
-            // Taiwanese Hokkien. These are the few phrases that come up
-            // every single day, written the way they sound.
-            Text('Talking to the elder', style: AppTextStyles.heading(fontSize: 24).copyWith(color: Colors.black)),
-            const SizedBox(height: 6),
-            Text('Many elders speak Taiwanese Hokkien, not Mandarin.\nSay it the way it is written.',
-                style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600, height: 1.5)),
-            const SizedBox(height: 14),
-            ..._hokkienPhrases.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PhraseCard(phrase: p, accent: _teal),
-                )),
-
-            const SizedBox(height: 32),
-          ]),
+                  child: _ContactCard(
+                    contact: c,
+                    onTap: () => _makeCall(c.number),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildQuickActions(),
+              const SizedBox(height: 10),
+              _buildMoreNumbers(),
+              const SizedBox(height: 32),
+              _buildPhrasebookHeader(),
+              const SizedBox(height: 16),
+              _buildPhrasebookList(),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final recipient = SelectedProfile.instance.careRecipient;
-    return Row(children: [
-      GestureDetector(
-        onTap: () => context.push('/profiles'),
-        child: Container(width: 38, height: 38,
-          decoration: const BoxDecoration(color: _teal, shape: BoxShape.circle),
-          child: Center(child: Text(recipient?.initials ?? '?', style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)))),
-      ),
-      const SizedBox(width: 10),
-      Expanded(child: GestureDetector(
-        onTap: () => context.push('/profiles'),
-        child: Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(recipient?.displayName ?? 'Add a profile', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
-            if (recipient != null)
-              Text(
-                [
-                  if (recipient.age != null) '${recipient.age}',
-                  if (recipient.preferredLanguages.isNotEmpty) 'speaks ${recipient.preferredLanguages.first}',
-                ].join(' · '),
-                style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Edit phone # by long pressing',
+          style: AppTextStyles.body(
+            fontSize: 12,
+          ).copyWith(color: Colors.grey.shade500),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickActionButton(
+                icon: Icons.phone_rounded,
+                label: 'Call family',
+                phoneNumber: _familyContact.number,
+                onTap: () => _makeCall(_familyContact.number),
+                onLongPress: () => _showEditDialog(true),
               ),
-          ]),
-          const SizedBox(width: 4),
-          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey.shade500),
-        ]),
-      )),
-      IconButton(onPressed: () => context.push('/activity'), icon: Icon(Icons.notifications_none_rounded, color: Colors.grey.shade700, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-      const SizedBox(width: 16),
-      IconButton(onPressed: () => context.push('/settings'), icon: Icon(Icons.settings_outlined, color: Colors.grey.shade700, size: 24), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-    ]);
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _QuickActionButton(
+                icon: Icons.local_hospital_rounded,
+                label: 'Clinic',
+                phoneNumber: _clinicContact.number,
+                onTap: () => _makeCall(_clinicContact.number),
+                onLongPress: () => _showEditDialog(false),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhrasebookHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Emergency phrasebook',
+          style: AppTextStyles.heading(
+            fontSize: 18,
+          ).copyWith(color: Colors.black),
+        ),
+        GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Edit coming soon')));
+          },
+          child: Row(
+            children: [
+              const Icon(Icons.edit, size: 16, color: _teal),
+              const SizedBox(width: 4),
+              Text(
+                'Edit',
+                style: AppTextStyles.bodyMedium(
+                  fontSize: 14,
+                ).copyWith(color: _teal),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhrasebookList() {
+    return Column(
+      children: [
+        // Disclaimer for Hokkien
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Colors.orange.shade800,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing Mandarin — Hokkien phrases coming soon',
+                    style: AppTextStyles.body(
+                      fontSize: 12,
+                    ).copyWith(color: Colors.orange.shade900),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _phrases.length,
+          itemBuilder: (context, index) {
+            final entry = _phrases[index];
+            final isSpeaking = _speakingId == entry.id;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: isSpeaking ? Colors.teal.shade50 : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSpeaking ? _teal : Colors.grey.shade200,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.targetRomanization,
+                            style: AppTextStyles.body(
+                              fontSize: 13,
+                            ).copyWith(color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.targetPhrase,
+                            style: AppTextStyles.heading(
+                              fontSize: 18,
+                            ).copyWith(color: Colors.black),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.caregiverGloss,
+                            style: AppTextStyles.body(
+                              fontSize: 13,
+                            ).copyWith(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => _speak(entry),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: _teal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            isSpeaking
+                                ? Icons.volume_up
+                                : Icons.volume_up_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMoreNumbers() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            ListTile(
+              title: Text(
+                'More numbers',
+                style: AppTextStyles.heading(
+                  fontSize: 16,
+                ).copyWith(color: Colors.black),
+              ),
+              trailing: Icon(
+                _moreNumbersExpanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                color: Colors.grey.shade600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              onTap: () {
+                setState(() {
+                  _moreNumbersExpanded = !_moreNumbersExpanded;
+                });
+              },
+            ),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 400),
+              sizeCurve: Curves.easeInOut,
+              crossFadeState: _moreNumbersExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox(width: double.infinity, height: 0),
+              secondChild: Column(
+                children: _moreContacts
+                    .map(
+                      (c) => Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 10,
+                          left: 16,
+                          right: 16,
+                        ),
+                        child: _ContactCard(
+                          contact: c,
+                          onTap: () => _makeCall(c.number),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => context.push('/patients/lola-rosa'),
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Lola Rosa',
+                      style: AppTextStyles.bodyMedium(
+                        fontSize: 14,
+                      ).copyWith(color: Colors.black87),
+                    ),
+                    Text(
+                      '82 · speaks Hokkien',
+                      style: AppTextStyles.body(
+                        fontSize: 11,
+                      ).copyWith(color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: Colors.grey.shade500,
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () => context.push('/activity'),
+          icon: Icon(
+            Icons.notifications_none_rounded,
+            color: Colors.grey.shade700,
+            size: 24,
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        const SizedBox(width: 16),
+        IconButton(
+          onPressed: () => context.push('/settings'),
+          icon: Icon(
+            Icons.settings_outlined,
+            color: Colors.grey.shade700,
+            size: 24,
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ],
+    );
   }
 
   Widget _buildBottomNav(BuildContext context) {
@@ -184,156 +786,218 @@ class HelpPage extends StatelessWidget {
       },
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,
-      selectedItemColor: _red, unselectedItemColor: Colors.grey.shade400,
+      selectedItemColor: _red,
+      unselectedItemColor: Colors.grey.shade400,
       selectedLabelStyle: AppTextStyles.bodyMedium(fontSize: 11),
       unselectedLabelStyle: AppTextStyles.body(fontSize: 11),
       elevation: 8,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Today'),
-        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Ask'),
-        BottomNavigationBarItem(icon: Icon(Icons.mic_none_rounded), label: 'Log'),
-        BottomNavigationBarItem(icon: Icon(Icons.medication_outlined), label: 'Meds'),
-        BottomNavigationBarItem(icon: Icon(Icons.help_outline_rounded), label: 'Help'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.chat_bubble_outline_rounded),
+          label: 'Ask',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.mic_none_rounded),
+          label: 'Log',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.medication_outlined),
+          label: 'Meds',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.help_outline_rounded),
+          label: 'Help',
+        ),
       ],
     );
   }
 }
 
-// ── Data ────────────────────────────────────────────────────────────────────
-
 class _Contact {
-  final String number;
-  final String? display;
-  final String name;
-  final String nameZh;
-  final String subtitle;
-  final bool urgent;
+  final String number, name, subtitle;
+  final Color bg;
+  final bool isLight;
+  final int displayOrder;
 
-  const _Contact({
-    required this.number,
-    this.display,
-    required this.name,
-    required this.nameZh,
-    required this.subtitle,
-    required this.urgent,
+  const _Contact(
+    this.number,
+    this.name,
+    this.subtitle,
+    this.bg,
+    this.isLight, {
+    this.displayOrder = 0,
   });
 
-  String get displayNumber => display ?? number;
-}
-
-class _Phrase {
-  /// What the caregiver means, in the app's working language.
-  final String meaning;
-
-  /// Written form to show a Mandarin reader. Null for the Hokkien phrases:
-  /// Hokkien is spoken, not written, in this context — an elder who speaks
-  /// it may not read Han characters, and the written Mandarin equivalent
-  /// would be a different sentence, not a transcription.
-  final String? script;
-
-  /// How to say it, written for a Tagalog/Bahasa/Vietnamese speaker rather
-  /// than in a formal romanization system.
-  final String sounds;
-
-  const _Phrase({required this.meaning, this.script, required this.sounds});
-}
-
-/// Caregiver → responder/family, in Mandarin. Ordered by how urgent they are.
-const _emergencyPhrases = [
-  _Phrase(meaning: 'Please send an ambulance.', script: '請派救護車。', sounds: 'ching pai jiu-hu-che'),
-  _Phrase(meaning: 'She cannot breathe.', script: '她沒辦法呼吸。', sounds: 'ta mei-ban-fa hu-shi'),
-  _Phrase(meaning: 'She fell down.', script: '她跌倒了。', sounds: 'ta die-dao le'),
-  _Phrase(meaning: 'She has chest pain.', script: '她胸口痛。', sounds: 'ta shiong-kou tong'),
-  _Phrase(meaning: 'I am the caregiver. I am not family.', script: '我是看護，不是家人。', sounds: 'wo shi kan-hu, bu shi jia-ren'),
-  _Phrase(meaning: 'I do not speak Mandarin well.', script: '我中文說得不好。', sounds: 'wo jong-wen shuo de bu hao'),
-  _Phrase(meaning: 'Please speak slowly.', script: '請說慢一點。', sounds: 'ching shuo man yi-dian'),
-];
-
-/// Caregiver → elder, in Taiwanese Hokkien. Deliberately tiny: the handful
-/// of things that must be asked every day. Pre-departure training covers
-/// Mandarin only, so without these the daily interaction has no shared
-/// language at all.
-const _hokkienPhrases = [
-  _Phrase(meaning: 'Have you eaten?', sounds: 'chiah pa bue?'),
-  _Phrase(meaning: 'Time for your medicine.', sounds: 'ho-si chiah ioh a'),
-  _Phrase(meaning: 'Do you need the toilet?', sounds: 'beh khi pang-so bo?'),
-  _Phrase(meaning: 'Does it hurt? Where?', sounds: 'e thiann bo? toh-ui thiann?'),
-  _Phrase(meaning: 'Please rest / lie down.', sounds: 'hioh-khun tsit-e'),
-  _Phrase(meaning: 'Are you cold?', sounds: 'e kuann bo?'),
-  _Phrase(meaning: 'I am here. Do not worry.', sounds: 'gua ti tsia, mai huan-lo'),
-];
-
-// ── Widgets ─────────────────────────────────────────────────────────────────
-
-class _ContactCard extends StatelessWidget {
-  final _Contact contact;
-  const _ContactCard({required this.contact});
-
-  Future<void> _call(BuildContext context) async {
-    final uri = Uri(scheme: 'tel', path: contact.number);
-    final launched = await launchUrl(uri);
-    if (!launched && context.mounted) {
-      // Web/desktop, or a device with no dialler — show the number so it can
-      // still be dialled by hand rather than failing silently.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Dial ${contact.displayNumber} on your phone.')),
-      );
+  static String _labelForCategory(String category) {
+    switch (category) {
+      case 'police':
+        return 'Police';
+      case 'fireMedicalEmergency':
+        return 'Ambulance and fire';
+      case 'protection':
+        return 'Danger or protection';
+      case 'labor':
+        return 'Labor helpline';
+      case 'longTermCare':
+        return 'Long-term care';
+      case 'generalForeignerSupport':
+        return 'Foreigner helpline';
+      case 'dementiaSupport':
+        return 'Dementia support';
+      case 'caregiverSupport':
+        return 'Caregiver support';
+      default:
+        return category;
     }
   }
 
+  factory _Contact.fromJson(Map<String, dynamic> json) {
+    final category = json['category'] as String;
+    final isEmergency = json['emergency'] as bool? ?? false;
+    return _Contact(
+      json['phoneNumber'] as String? ?? json['shortName'] as String,
+      json['officialName'] as String,
+      _labelForCategory(category),
+      isEmergency ? _HelpPageState._red : Colors.black,
+      isEmergency,
+      displayOrder: json['displayOrder'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'phoneNumber': number,
+    'officialName': name,
+    'category': subtitle,
+    'emergency': isLight,
+    'displayOrder': displayOrder,
+  };
+}
+
+class _ContactCard extends StatelessWidget {
+  final _Contact contact;
+  final VoidCallback onTap;
+
+  const _ContactCard({required this.contact, required this.onTap});
+
   @override
   Widget build(BuildContext context) {
-    final bg = contact.urgent ? HelpPage._red : Colors.black87;
+    final fg = contact.isLight ? Colors.white : Colors.white;
     return GestureDetector(
-      onTap: () => _call(context),
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
-        child: Row(children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-            child: const Icon(Icons.phone_rounded, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(contact.displayNumber, style: AppTextStyles.bodyMedium(fontSize: 20).copyWith(color: Colors.white)),
-            Text('${contact.name} · ${contact.nameZh}',
-                style: AppTextStyles.bodyMedium(fontSize: 13).copyWith(color: Colors.white)),
-            Text(contact.subtitle,
-                style: AppTextStyles.body(fontSize: 12).copyWith(color: Colors.white.withValues(alpha: 0.75))),
-          ])),
-          Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.7), size: 22),
-        ]),
+        decoration: BoxDecoration(
+          color: contact.bg,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.phone_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.number,
+                    style: AppTextStyles.bodyMedium(
+                      fontSize: 17,
+                    ).copyWith(color: fg),
+                  ),
+                  Text(
+                    contact.name,
+                    style: AppTextStyles.bodyMedium(
+                      fontSize: 13,
+                    ).copyWith(color: fg),
+                  ),
+                  Text(
+                    contact.subtitle,
+                    style: AppTextStyles.body(
+                      fontSize: 12,
+                    ).copyWith(color: fg.withValues(alpha: 0.75)),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.7),
+              size: 22,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _PhraseCard extends StatelessWidget {
-  final _Phrase phrase;
-  final Color accent;
-  const _PhraseCard({required this.phrase, required this.accent});
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String phoneNumber;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.phoneNumber,
+    required this.onTap,
+    required this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
-        borderRadius: BorderRadius.circular(14),
+    return ElevatedButton(
+      onPressed: onTap,
+      onLongPress: onLongPress,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(phrase.meaning, style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
-        const SizedBox(height: 6),
-        if (phrase.script != null) ...[
-          Text(phrase.script!, style: AppTextStyles.bodyMedium(fontSize: 19).copyWith(color: accent, height: 1.4)),
-          const SizedBox(height: 2),
-        ],
-        Text(phrase.sounds, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
-      ]),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 24, color: Colors.black),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTextStyles.bodyMedium(
+                fontSize: 14,
+              ).copyWith(color: Colors.black),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              phoneNumber,
+              style: AppTextStyles.body(
+                fontSize: 13,
+              ).copyWith(color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

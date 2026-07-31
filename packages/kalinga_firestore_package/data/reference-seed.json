@@ -335,7 +335,7 @@
       "data": {
         "localeCode": "zh-TW",
         "displayNameEnglish": "Traditional Chinese",
-        "displayNameNative": "\u7e41\u9ad4\u4e2d\u6587",
+        "displayNameNative": "繁體中文",
         "enabled": true,
         "interfaceSupported": true,
         "speechToTextSupported": true,
@@ -410,7 +410,7 @@
       "data": {
         "localeCode": "vi",
         "displayNameEnglish": "Vietnamese",
-        "displayNameNative": "Ti\u1ebfng Vi\u1ec7t",
+        "displayNameNative": "Tiếng Việt",
         "enabled": true,
         "interfaceSupported": true,
         "speechToTextSupported": true,
@@ -793,7 +793,7 @@
         "scenarioKey": "call119",
         "localizedText": {
           "en": "I need emergency medical help. My address is shown on this screen.",
-          "zh-TW": "\u6211\u9700\u8981\u7dca\u6025\u91ab\u7642\u5354\u52a9\u3002\u6211\u7684\u5730\u5740\u986f\u793a\u5728\u9019\u500b\u756b\u9762\u4e0a\u3002"
+          "zh-TW": "我需要緊急醫療協助。我的地址顯示在這個畫面上。"
         },
         "localizedAudioAssetIds": {},
         "recommendedServiceId": "119",
@@ -817,7 +817,7 @@
         "scenarioKey": "contact1955",
         "localizedText": {
           "en": "I need labor consultation or interpretation assistance.",
-          "zh-TW": "\u6211\u9700\u8981\u52de\u52d5\u8aee\u8a62\u6216\u53e3\u8b6f\u5354\u52a9\u3002"
+          "zh-TW": "我需要勞動諮詢或口譯協助。"
         },
         "localizedAudioAssetIds": {},
         "recommendedServiceId": "1955",
@@ -1080,6 +1080,605 @@
           "value": "2026-07-29T21:56:00+08:00"
         },
         "updatedBy": "schema-package-build"
+      }
+    },
+    {
+      "path": "governmentServices/0800-474-580",
+      "data": {
+        "serviceId": "0800-474-580",
+        "officialName": "National Dementia Care Hotline",
+        "shortName": "0800-474-580",
+        "category": "dementiaSupport",
+        "phoneNumber": "0800474580",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "Weekdays 9:00–21:00"
+        },
+        "localizedDescriptions": {
+          "en": "National Dementia Care Hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 7,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/1995",
+      "data": {
+        "serviceId": "1995",
+        "officialName": "Lifeline (caregiver emotional support)",
+        "shortName": "1995",
+        "category": "caregiverSupport",
+        "phoneNumber": "1995",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "24 hours"
+        },
+        "localizedDescriptions": {
+          "en": "Lifeline (caregiver emotional support)"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 8,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "governmentServices/165",
+      "data": {
+        "serviceId": "165",
+        "officialName": "Anti-Fraud Hotline",
+        "shortName": "165",
+        "category": "protection",
+        "phoneNumber": "165",
+        "officialUrl": null,
+        "onlineChatUrl": null,
+        "supportedLanguages": [],
+        "operatingHours": {
+          "display": "24 hours"
+        },
+        "localizedDescriptions": {
+          "en": "Anti-Fraud Hotline"
+        },
+        "eligibilityNotes": {},
+        "emergency": false,
+        "verificationStatus": "requiresPreLaunchVerification",
+        "lastVerifiedAt": null,
+        "verifiedBy": null,
+        "sourceUrl": null,
+        "displayOrder": 9,
+        "enabled": true,
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_001",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_001",
+        "localizedText": {
+          "zh-TW": "他/她失去意識了",
+          "en": "He/she is unconscious"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 3,
+        "status": "approved",
+        "ttsPhrase": "她失去意識了",
+        "targetRomanization": "Tā/tā shīqù yìshì le",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_002",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_002",
+        "localizedText": {
+          "zh-TW": "他/她無法呼吸",
+          "en": "He/she can't breathe"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 4,
+        "status": "approved",
+        "ttsPhrase": "她無法呼吸",
+        "targetRomanization": "Tā/tā wúfǎ hūxī",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_003",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_003",
+        "localizedText": {
+          "zh-TW": "他/她跌倒了",
+          "en": "He/she fell down"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 5,
+        "status": "approved",
+        "ttsPhrase": "她跌倒了",
+        "targetRomanization": "Tā/tā diédǎo le",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_004",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_004",
+        "localizedText": {
+          "zh-TW": "他/她胸口痛",
+          "en": "He/she has chest pain"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 6,
+        "status": "approved",
+        "ttsPhrase": "她胸口痛",
+        "targetRomanization": "Tā/tā xiōngkǒu tòng",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_005",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_005",
+        "localizedText": {
+          "zh-TW": "請叫救護車",
+          "en": "Please call an ambulance"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 7,
+        "status": "approved",
+        "ttsPhrase": "請叫救護車",
+        "targetRomanization": "Qǐng jiào jiùhùchē",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_006",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_006",
+        "localizedText": {
+          "zh-TW": "他/她在流血",
+          "en": "He/she is bleeding"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 8,
+        "status": "approved",
+        "ttsPhrase": "她在流血",
+        "targetRomanization": "Tā/tā zài liúxuè",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/med_007",
+      "data": {
+        "category": "medicalEmergency",
+        "scenarioKey": "med_007",
+        "localizedText": {
+          "zh-TW": "他/她發燒了",
+          "en": "He/she has a fever"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": "119",
+        "requiresImmediateCall": true,
+        "displayOrder": 9,
+        "status": "approved",
+        "ttsPhrase": "她發燒了",
+        "targetRomanization": "Tā/tā fāshāo le",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/dem_001",
+      "data": {
+        "category": "dementia",
+        "scenarioKey": "dem_001",
+        "localizedText": {
+          "zh-TW": "他/她意識混亂",
+          "en": "He/she is confused/disoriented"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 10,
+        "status": "approved",
+        "ttsPhrase": "她意識混亂",
+        "targetRomanization": "Tā/tā yìshì hùnluàn",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/dem_002",
+      "data": {
+        "category": "dementia",
+        "scenarioKey": "dem_002",
+        "localizedText": {
+          "zh-TW": "他/她走失了",
+          "en": "He/she wandered off / is missing"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": true,
+        "displayOrder": 11,
+        "status": "approved",
+        "ttsPhrase": "她走失了",
+        "targetRomanization": "Tā/tā zǒushī le",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/dem_003",
+      "data": {
+        "category": "dementia",
+        "scenarioKey": "dem_003",
+        "localizedText": {
+          "zh-TW": "他/她不認得我",
+          "en": "He/she doesn't recognize me"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 12,
+        "status": "approved",
+        "ttsPhrase": "她不認得我",
+        "targetRomanization": "Tā/tā bù rènde wǒ",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/dem_004",
+      "data": {
+        "category": "dementia",
+        "scenarioKey": "dem_004",
+        "localizedText": {
+          "zh-TW": "他/她情緒激動",
+          "en": "He/she is agitated/upset"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 13,
+        "status": "approved",
+        "ttsPhrase": "她情緒激動",
+        "targetRomanization": "Tā/tā qíngxù jīdòng",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/medc_001",
+      "data": {
+        "category": "medication",
+        "scenarioKey": "medc_001",
+        "localizedText": {
+          "zh-TW": "他/她沒吃藥",
+          "en": "He/she missed his/her medication"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 14,
+        "status": "approved",
+        "ttsPhrase": "她沒吃藥",
+        "targetRomanization": "Tā/tā méi chī yào",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/medc_002",
+      "data": {
+        "category": "medication",
+        "scenarioKey": "medc_002",
+        "localizedText": {
+          "zh-TW": "他/她在嘔吐",
+          "en": "He/she is vomiting"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 15,
+        "status": "approved",
+        "ttsPhrase": "她在嘔吐",
+        "targetRomanization": "Tā/tā zài ǒutù",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/medc_003",
+      "data": {
+        "category": "medication",
+        "scenarioKey": "medc_003",
+        "localizedText": {
+          "zh-TW": "他/她不肯吃東西",
+          "en": "He/she won't eat"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 16,
+        "status": "approved",
+        "ttsPhrase": "她不肯吃東西",
+        "targetRomanization": "Tā/tā bùkěn chī dōngxī",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/medc_004",
+      "data": {
+        "category": "medication",
+        "scenarioKey": "medc_004",
+        "localizedText": {
+          "zh-TW": "我需要醫生",
+          "en": "I need a doctor"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 17,
+        "status": "approved",
+        "ttsPhrase": "我需要醫生",
+        "targetRomanization": "Wǒ xūyào yīshēng",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/self_001",
+      "data": {
+        "category": "selfAdvocacy",
+        "scenarioKey": "self_001",
+        "localizedText": {
+          "zh-TW": "請幫幫我",
+          "en": "I need help, please"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 18,
+        "status": "approved",
+        "ttsPhrase": "請幫幫我",
+        "targetRomanization": "Qǐng bāngbang wǒ",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/self_002",
+      "data": {
+        "category": "selfAdvocacy",
+        "scenarioKey": "self_002",
+        "localizedText": {
+          "zh-TW": "我不明白",
+          "en": "I don't understand"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 19,
+        "status": "approved",
+        "ttsPhrase": "我不明白",
+        "targetRomanization": "Wǒ bù míngbái",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/self_003",
+      "data": {
+        "category": "selfAdvocacy",
+        "scenarioKey": "self_003",
+        "localizedText": {
+          "zh-TW": "請說慢一點",
+          "en": "Please speak slowly"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 20,
+        "status": "approved",
+        "ttsPhrase": "請說慢一點",
+        "targetRomanization": "Qǐng shuō màn yīdiǎn",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
+      }
+    },
+    {
+      "path": "emergencyPhrasebooks/core-1.0.0/phrases/self_004",
+      "data": {
+        "category": "selfAdvocacy",
+        "scenarioKey": "self_004",
+        "localizedText": {
+          "zh-TW": "我身體不舒服",
+          "en": "I am not feeling well"
+        },
+        "localizedAudioAssetIds": {},
+        "recommendedServiceId": null,
+        "requiresImmediateCall": false,
+        "displayOrder": 21,
+        "status": "approved",
+        "ttsPhrase": "我身體不舒服",
+        "targetRomanization": "Wǒ shēntǐ bù shūfú",
+        "createdAt": {
+          "__type": "serverTimestamp"
+        },
+        "createdBy": "seed",
+        "updatedAt": {
+          "__type": "serverTimestamp"
+        },
+        "updatedBy": "seed"
       }
     },
     {
