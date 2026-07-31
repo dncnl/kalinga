@@ -1,32 +1,18 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+const llmClient = require('../../src/lib/llmClient');
 const { extractObservation, normalizeCategories, normalizeScore } = require('../../src/lib/extractObservation');
 
-function mockFetchOk(t, toolCallArguments) {
-  t.mock.method(global, 'fetch', async (url, options) => {
-    assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
-    JSON.parse(options.body); // just confirm it's valid JSON
-
-    return {
-      ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              tool_calls: toolCallArguments
-                ? [{ function: { arguments: JSON.stringify(toolCallArguments) } }]
-                : undefined,
-            },
-          },
-        ],
-      }),
-    };
+function mockExtraction(t, parsed) {
+  return t.mock.method(llmClient, 'generateStructured', async ({ prompt }) => {
+    assert.match(prompt, /Transcript:/);
+    return parsed;
   });
 }
 
-test('extractObservation parses the tool call arguments', async (t) => {
-  const fakeExtraction = {
+test('extractObservation returns the parsed extraction with normalized fields', async (t) => {
+  mockExtraction(t, {
     categories: ['sleep', 'appetite'],
     comparisonToUsual: 'worse',
     structuredObservation: {
@@ -35,40 +21,46 @@ test('extractObservation parses the tool call arguments', async (t) => {
       appetiteLevel: 0.4,
     },
     safetyAssessment: { concernLevel: 'low', concerns: [], recommendFollowUp: false },
-  };
-
-  mockFetchOk(t, fakeExtraction);
+  });
 
   const result = await extractObservation({ transcript: 'Slept poorly, ate less than usual.' });
 
   assert.deepEqual(result, {
-    ...fakeExtraction,
+    categories: ['sleep', 'appetite'],
+    comparisonToUsual: 'worse',
     structuredObservation: {
-      ...fakeExtraction.structuredObservation,
+      summary: 'Slept poorly, ate less than usual.',
+      sleepQuality: 0.2,
+      appetiteLevel: 0.4,
       moodScore: null,
     },
+    safetyAssessment: { concernLevel: 'low', concerns: [], recommendFollowUp: false },
   });
 });
 
-test('extractObservation throws when the model does not call the tool', async (t) => {
-  mockFetchOk(t, null);
+test('extractObservation normalizes category synonyms and out-of-range scores', async (t) => {
+  mockExtraction(t, {
+    categories: ['energy', 'food'],
+    comparisonToUsual: 'same',
+    structuredObservation: { summary: 'x', sleepQuality: 5, moodScore: -1 },
+    safetyAssessment: { concernLevel: 'none', concerns: [], recommendFollowUp: false },
+  });
 
-  await assert.rejects(
-    () => extractObservation({ transcript: 'anything' }),
-    /did not return structured observation data/,
-  );
+  const result = await extractObservation({ transcript: 'anything' });
+
+  assert.deepEqual(result.categories, ['mobility', 'appetite']);
+  assert.equal(result.structuredObservation.sleepQuality, 1);
+  assert.equal(result.structuredObservation.moodScore, 0);
 });
 
-test('extractObservation throws on a non-ok HTTP response', async (t) => {
-  t.mock.method(global, 'fetch', async () => ({
-    ok: false,
-    status: 429,
-    text: async () => 'rate limited',
-  }));
+test('extractObservation propagates errors from the LLM client', async (t) => {
+  t.mock.method(llmClient, 'generateStructured', async () => {
+    throw new Error('rate limited upstream');
+  });
 
   await assert.rejects(
     () => extractObservation({ transcript: 'anything' }),
-    /OpenRouter request failed \(429\)/,
+    /rate limited upstream/,
   );
 });
 

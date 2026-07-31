@@ -7,10 +7,12 @@ import '../state/selected_profile.dart';
 import '../theme.dart';
 
 /// No email-sending infrastructure exists (see PLAN.md) — this generates a
-/// token via apps/api and shows it as a copyable link for the caregiver to
-/// share manually (message, etc). "kalinga://invite/{token}" is a
-/// placeholder scheme, not a registered/working deep link yet — clicking it
-/// outside the app won't do anything until real link infrastructure exists.
+/// token via apps/api and shows it as a copyable code for the caregiver to
+/// share manually (message, etc). The family member types this code into
+/// the app themselves under "I'm a family member" (`FamilyCodePage`,
+/// `/family-code`) rather than following a deep link — a working
+/// `kalinga://` URL scheme was never registered, so the link-based flow
+/// this screen used to describe didn't actually work outside the app.
 Future<void> showInviteSheet(BuildContext context, {required CareRecipient recipient}) {
   return showModalBottomSheet(
     context: context,
@@ -36,25 +38,12 @@ class _InviteSheetState extends State<_InviteSheet> {
   static const _red = Color(0xFFEF3E23);
 
   final _inviteService = InviteService();
-  final _emailController = TextEditingController();
   String _role = 'family';
   bool _creating = false;
   String? _error;
-  String? _link;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    super.dispose();
-  }
+  String? _code;
 
   Future<void> _create() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter a valid email.');
-      return;
-    }
-
     final householdId = SelectedProfile.instance.householdId;
     if (householdId == null) {
       setState(() => _error = 'No household — try again after the app finishes loading.');
@@ -67,13 +56,12 @@ class _InviteSheetState extends State<_InviteSheet> {
     });
 
     try {
-      final token = await _inviteService.createInvite(
+      final code = await _inviteService.createInvite(
         householdId: householdId,
         intendedRole: _role,
-        invitedEmail: email,
         careRecipientId: widget.recipient.id,
       );
-      setState(() => _link = 'kalinga://invite/$token');
+      setState(() => _code = code);
     } catch (e) {
       setState(() => _error = 'Could not create invite: $e');
     } finally {
@@ -98,7 +86,7 @@ class _InviteSheetState extends State<_InviteSheet> {
               style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.grey.shade600)),
           const SizedBox(height: 20),
 
-          if (_link == null) ...[
+          if (_code == null) ...[
             Row(children: [
               Expanded(
                 child: _RolePill(
@@ -116,18 +104,9 @@ class _InviteSheetState extends State<_InviteSheet> {
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                hintText: 'their@email.com',
-                filled: true,
-                fillColor: const Color(0xFFF5F0E8),
-                contentPadding: const EdgeInsets.all(16),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-              ),
-            ),
+            // No email field: the backend mints a pure shared-secret join
+            // code (b10bcd9) not tied to any invitee identity — collecting
+            // an email here would imply something is sent to it.
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),
@@ -145,28 +124,33 @@ class _InviteSheetState extends State<_InviteSheet> {
                 ),
                 child: _creating
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                    : Text('Create invite link', style: AppTextStyles.bodyMedium(fontSize: 15)),
+                    : Text('Create invite code', style: AppTextStyles.bodyMedium(fontSize: 15)),
               ),
             ),
           ] else ...[
-            Text('Share this link:', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
+            Text('Share this code:', style: AppTextStyles.bodyMedium(fontSize: 14).copyWith(color: Colors.black87)),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: const Color(0xFFF5F0E8), borderRadius: BorderRadius.circular(12)),
-              child: Text(_link!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+              child: Text(_code!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87)),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Give this code to the family member — they\'ll enter it in the app under "I\'m a family member."',
+              style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade600, height: 1.4),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _link!));
+                  Clipboard.setData(ClipboardData(text: _code!));
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
                 },
                 icon: const Icon(Icons.copy_rounded, size: 18),
-                label: Text('Copy link', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
+                label: Text('Copy code', style: AppTextStyles.bodyMedium(fontSize: 15).copyWith(color: Colors.black87)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.black87,
                   padding: const EdgeInsets.symmetric(vertical: 14),

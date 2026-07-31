@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 
 const firebase = require('../../src/firebase');
+const llmClient = require('../../src/lib/llmClient');
 const app = require('../../src/app');
 
 const BASE = '/households/h1/care-recipients/r1';
@@ -161,30 +162,21 @@ test('POST /medications/upload-url returns a signed write URL', async (t) => {
   assert.match(res.body.uploadUrl, /^https:\/\/signed\.example\.com\/write/);
 });
 
+// The label scan now goes through llmClient's Vertex vision path rather
+// than a raw fetch to OpenRouter, so the seam to mock is the client, not
+// global.fetch. getBucket only needs a name now: Vertex reads the object by
+// gs:// URI, so no signed read URL is minted.
 function mockVisionSuccess(t, draftOverrides = {}) {
-  t.mock.method(firebase, 'getBucket', () => ({
-    file: () => ({ getSignedUrl: async () => ['https://signed.example.com/read'] }),
-  }));
-  t.mock.method(global, 'fetch', async () => ({
-    ok: true,
-    json: async () => ({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              name: 'Metformin',
-              strength: '500 mg',
-              dosageText: '2 tablets twice daily',
-              route: 'oral',
-              specialInstructions: 'take with food',
-              times: ['08:00', '20:00'],
-              confidence: 'high',
-              ...draftOverrides,
-            }),
-          },
-        },
-      ],
-    }),
+  t.mock.method(firebase, 'getBucket', () => ({ name: 'test-bucket' }));
+  t.mock.method(llmClient, 'generateStructuredFromImage', async () => ({
+    name: 'Metformin',
+    strength: '500 mg',
+    dosageText: '2 tablets twice daily',
+    route: 'oral',
+    specialInstructions: 'take with food',
+    times: ['08:00', '20:00'],
+    confidence: 'high',
+    ...draftOverrides,
   }));
 }
 
@@ -237,16 +229,16 @@ test('POST /medications/:id/process saves an unverified labelOcrDraft', async (t
   );
 });
 
-test('POST /medications/:id/process returns 502 when every vision model fails', async (t) => {
+test('POST /medications/:id/process returns 502 when the vision model fails', async (t) => {
   mockAuthedUser(t, 'caregiver-1');
   t.mock.method(firebase.db, 'doc', (path) => {
     if (path.includes('/assignments/')) return { get: async () => ({ exists: true, data: () => ({ status: 'active' }) }) };
     return { get: async () => ({ exists: true, data: () => ({ status: 'pendingUpload', photoExtension: 'jpg' }) }) };
   });
-  t.mock.method(firebase, 'getBucket', () => ({
-    file: () => ({ getSignedUrl: async () => ['https://signed.example.com/read'] }),
-  }));
-  t.mock.method(global, 'fetch', async () => ({ ok: false, status: 429, text: async () => 'rate limited' }));
+  t.mock.method(firebase, 'getBucket', () => ({ name: 'test-bucket' }));
+  t.mock.method(llmClient, 'generateStructuredFromImage', async () => {
+    throw new Error('vertex unavailable');
+  });
 
   const res = await request(app)
     .post(`${BASE}/medications/med-1/process`)

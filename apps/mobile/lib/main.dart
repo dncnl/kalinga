@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'state/selected_profile.dart';
+import 'state/session_role.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -25,10 +26,29 @@ Future<void> main() async {
   // authStateChanges() emission settles "who's actually logged in" first.
   await FirebaseAuth.instance.authStateChanges().first;
 
+  // Which surface does this session use? Must be known before deciding
+  // whether to bootstrap: SelectedProfile.initialize() is caregiver-only —
+  // for a family account it would POST /households/bootstrap and mint a
+  // spurious caregiver household. Family sessions resolve their viewable
+  // recipients via FamilyViewerService instead (see WelcomePage).
+  await SessionRole.instance.load();
+
+  // Only bootstrap for an already-signed-in caregiver. Firing this
+  // unconditionally meant a fresh install hit POST /households/bootstrap
+  // before anyone had signed in — and since auth_token.dart falls back to
+  // signInAnonymously(), every first launch silently created a throwaway
+  // anonymous account plus a junk "Caregiver's household" in Firestore.
+  // The caregiver register/login paths call initialize() themselves once a
+  // real account exists (see auth_page.dart), so nothing is lost here.
+  final user = FirebaseAuth.instance.currentUser;
+  final hasRealAccount = user != null && !user.isAnonymous;
+
   // Fire-and-forget: app launches immediately, screens that depend on the
   // selected profile listen to SelectedProfile.instance and react once
   // this resolves rather than blocking startup on a network round trip.
-  unawaited(SelectedProfile.instance.initialize());
+  if (hasRealAccount && !SessionRole.instance.isFamily) {
+    unawaited(SelectedProfile.instance.initialize());
+  }
 
   runApp(const MyApp());
 }

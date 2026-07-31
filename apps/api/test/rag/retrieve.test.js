@@ -3,29 +3,26 @@ const assert = require('node:assert/strict');
 
 const { db } = require('../../src/firebase');
 const embeddings = require('../../src/rag/embeddings');
-const { retrieveRelevantChunks, cosineSimilarity } = require('../../src/rag/retrieve');
+const { retrieveRelevantChunks } = require('../../src/rag/retrieve');
 
-test('cosineSimilarity is 1 for identical vectors', () => {
-  assert.ok(Math.abs(cosineSimilarity([1, 0, 0], [1, 0, 0]) - 1) < 1e-9);
-});
+function mockFindNearest(t, docs) {
+  t.mock.method(db, 'collection', () => ({
+    findNearest: () => ({ get: async () => ({ docs }) }),
+  }));
+}
 
-test('cosineSimilarity is 0 for orthogonal vectors', () => {
-  assert.ok(Math.abs(cosineSimilarity([1, 0], [0, 1])) < 1e-9);
-});
+function fakeDoc({ score, ...fields }) {
+  return { data: () => ({ vectorDistance: 1 - score, ...fields }) };
+}
 
-test('cosineSimilarity handles a zero vector without dividing by zero', () => {
-  assert.equal(cosineSimilarity([0, 0], [1, 1]), 0);
-});
-
-test('retrieveRelevantChunks ranks by similarity and respects topK', async (t) => {
+test('retrieveRelevantChunks maps Firestore vector-search results, ranked by the server', async (t) => {
   t.mock.method(embeddings, 'embed', async () => [1, 0]);
 
   const docs = [
-    { data: () => ({ embedding: [1, 0], text: 'exact match', sourceId: 'a', sourceTitle: 'A', sourcePublisher: 'Pub A', sourceUrl: 'https://a', sourceCategory: 'cat' }) },
-    { data: () => ({ embedding: [0, 1], text: 'orthogonal', sourceId: 'b', sourceTitle: 'B', sourcePublisher: 'Pub B', sourceUrl: 'https://b', sourceCategory: 'cat' }) },
-    { data: () => ({ embedding: [0.9, 0.1], text: 'close match', sourceId: 'c', sourceTitle: 'C', sourcePublisher: 'Pub C', sourceUrl: 'https://c', sourceCategory: 'cat' }) },
+    fakeDoc({ score: 1, text: 'exact match', sourceId: 'a', sourceTitle: 'A', sourcePublisher: 'Pub A', sourceUrl: 'https://a', sourceCategory: 'cat' }),
+    fakeDoc({ score: 0.9, text: 'close match', sourceId: 'c', sourceTitle: 'C', sourcePublisher: 'Pub C', sourceUrl: 'https://c', sourceCategory: 'cat' }),
   ];
-  t.mock.method(db, 'collection', () => ({ get: async () => ({ docs }) }));
+  mockFindNearest(t, docs);
 
   const results = await retrieveRelevantChunks('anything', { topK: 2 });
 
@@ -33,17 +30,17 @@ test('retrieveRelevantChunks ranks by similarity and respects topK', async (t) =
   assert.equal(results[0].text, 'exact match');
   assert.equal(results[1].text, 'close match');
   assert.equal(results[0].sourceUrl, 'https://a');
+  assert.ok(Math.abs(results[0].score - 1) < 1e-9);
 });
 
 test('retrieveRelevantChunks filters out chunks below the relevance threshold', async (t) => {
   t.mock.method(embeddings, 'embed', async () => [1, 0]);
 
   const docs = [
-    { data: () => ({ embedding: [1, 0], text: 'relevant', sourceId: 'a', sourceTitle: 'A', sourcePublisher: 'Pub A', sourceUrl: 'https://a', sourceCategory: 'cat' }) },
-    { data: () => ({ embedding: [-1, 0], text: 'opposite direction', sourceId: 'b', sourceTitle: 'B', sourcePublisher: 'Pub B', sourceUrl: 'https://b', sourceCategory: 'cat' }) },
-    { data: () => ({ embedding: [0, 1], text: 'orthogonal / unrelated', sourceId: 'c', sourceTitle: 'C', sourcePublisher: 'Pub C', sourceUrl: 'https://c', sourceCategory: 'cat' }) },
+    fakeDoc({ score: 0.5, text: 'relevant', sourceId: 'a', sourceTitle: 'A', sourcePublisher: 'Pub A', sourceUrl: 'https://a', sourceCategory: 'cat' }),
+    fakeDoc({ score: 0.1, text: 'below threshold', sourceId: 'b', sourceTitle: 'B', sourcePublisher: 'Pub B', sourceUrl: 'https://b', sourceCategory: 'cat' }),
   ];
-  t.mock.method(db, 'collection', () => ({ get: async () => ({ docs }) }));
+  mockFindNearest(t, docs);
 
   const results = await retrieveRelevantChunks('anything');
 
@@ -53,7 +50,7 @@ test('retrieveRelevantChunks filters out chunks below the relevance threshold', 
 
 test('retrieveRelevantChunks returns empty array when corpus is empty', async (t) => {
   t.mock.method(embeddings, 'embed', async () => [1, 0]);
-  t.mock.method(db, 'collection', () => ({ get: async () => ({ docs: [] }) }));
+  mockFindNearest(t, []);
 
   const results = await retrieveRelevantChunks('anything');
 

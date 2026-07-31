@@ -4,6 +4,12 @@ Welcome to **Kalinga**, an AI care companion for migrant caregivers. This guide 
 
 If you just want the app overview and tech stack, see the main `README.md`. This document is about **working in the repo**.
 
+> **Setting up for the first time, or about to test a build?** Read
+> **[`TESTING.md`](TESTING.md)** instead — it covers the Google Cloud auth
+> setup this doc glosses over (ADC, which APIs to enable, the two env vars
+> people always miss) and a step-by-step walkthrough of the whole app with
+> the expected result at each step.
+
 ---
 
 ## 1. Repository layout
@@ -189,7 +195,40 @@ git push -u origin feature/your-thing
 
 ---
 
-## 9. Who to ask
+## 9. Product decisions worth knowing
+
+Two things that aren't obvious from the code, recorded here because both
+were deliberate choices rather than oversights.
+
+**Hokkien is handled, narrowly.** The rest of the app closes the
+caregiver ↔ family/doctor gap by translating into Mandarin. That does
+nothing for the other gap: pre-departure training covers Mandarin only,
+while many elders in home care speak Taiwanese Hokkien. The Help screen
+carries a small caregiver → elder Hokkien set (eaten, medicine, toilet,
+pain, rest, cold, reassurance) in romanization only — Hokkien here is
+spoken, and an elder who speaks it may not read Han characters, so the
+written Mandarin would be a different sentence rather than a
+transcription. It is intentionally a phrasebook and not a translation
+feature: real bidirectional Hokkien support is out of scope for this
+pilot.
+
+**Emergency calling assumes a personal phone.** The one-tap numbers on
+the Help screen dial from whatever handset the app is installed on. Many
+live-in workers use an employer-provided or employer-monitored phone,
+where calling 1955 (the labor helpline) is not a neutral act. The screen
+says this in plain words and suggests a friend's or public phone; we did
+not try to hide the calls, because a half-measure there would be worse
+than being honest about the limitation.
+
+**No AI decides urgency.** The symptom check-in's triage is a fixed rule
+table (`apps/api/src/lib/symptomTriage.js`), never a model — a
+hallucinated "that sounds fine" means somebody doesn't call an ambulance.
+The RAG layer only supplies "what to do while you wait", and cannot
+change the urgency. Same principle as §5's "AI never diagnoses".
+
+---
+
+## 10. Who to ask
 
 - **Firebase access / billing:** project owner
 - **Schema / data model questions:** whoever maintains `kalinga_firestore_package`
