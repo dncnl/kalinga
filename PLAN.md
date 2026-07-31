@@ -1,41 +1,47 @@
-# F1: free-text chat symptom checker
+# Fix: reminder/schedule cross-patient bug + login race
 
-Branch: `feature/f1-chat-symptom-checker`, cut from `main`.
+Branch: `fix/reminder-cross-patient-bug`, cut from `main` (post F1-chat merge).
 
-## Why
+## Bug reports (from Ralph)
 
-Main already has F1 as a tap-based, deterministic triage
-(`symptom_check_page.dart` / `symptomTriage.js`) — that stays as the
-authoritative urgency path, unchanged. But the original spec calls for a
-**chat-based** symptom checker, and main's generic `/rag/ask` chat isn't
-care-recipient-scoped and doesn't translate/flag anything to family in
-Mandarin. This branch adds that free-text chat entry point alongside the
-tap-based flow, not instead of it.
+1. Today's Reminders disappear after logging in and logging out.
+2. Logging a schedule item for Patient 1 shows up under Patient 2 —
+   suspected Firestore data mismanagement.
+3. Reminder CRUD + visual bugs, an error mentioning "Drei" in logs — not yet
+   reproduced/understood, need more detail from Ralph (screenshot or exact
+   log line).
 
-## Design
+## Root cause found (covers #1 and #2)
 
-- New route `POST /households/:hid/care-recipients/:crid/rag/ask`
-  (`apps/api/src/routes/rag.js`), sibling to the existing unscoped
-  `/rag/ask`. Reuses `answerQuestion()` (Firestore vector search RAG,
-  already multilingual) unchanged.
-- Records the exchange as an observation (`inputMode: 'text'`, reusing
-  `buildObservationDocument`) so it shows up for the family/trends like a
-  voice log, with a Mandarin translation via `translateToMandarin`.
-- `apps/api/src/lib/chatConcern.js` — a **deterministic keyword match**
-  (mirrors `symptomTriage.js`'s six categories, multilingual phrase list),
-  not an LLM call. It never asserts urgency; it only optionally nudges the
-  caregiver toward the tap-based `/symptom-check` flow. Urgency stays
-  exclusively `symptomTriage.js`'s job.
-- Mobile: `RagService.askForRecipient()` calls the scoped endpoint when a
-  care recipient is selected; `ask_page.dart` shows the Mandarin summary
-  and, when present, a tappable concern banner routing to `/symptom-check`.
+`prototype_home_page.dart`'s schedule/reminders section is **not**
+Firestore-backed — it's plain `setState` fetched once. Two bugs stacked:
+
+- `initState()` called `_loadSchedule()` immediately, without waiting for
+  `SelectedProfile.instance.ready`. Right after login, `SelectedProfile`
+  is still bootstrapping the household async — `_scope` was null, so the
+  page silently settled on an empty schedule and nothing ever retried.
+  Reads as "reminders disappeared."
+- Only `_buildHeader()` listens to `SelectedProfile` via `ListenableBuilder`.
+  Switching care recipients (`/profiles`) updates the header but the
+  schedule/reminders lists just keep whatever the *previous* recipient's
+  fetch returned, until a manual pull-to-refresh. Reads as "Patient 1's
+  schedule showing under Patient 2" — not a Firestore/backend scoping bug;
+  backend routes are correctly scoped per `careRecipientId` subcollection
+  (verified in `tasks.js`/`observations.js`).
+
+## Fix
+
+- Await `SelectedProfile.instance.ready` before the first `_loadSchedule()`.
+- Add a `SelectedProfile` listener that reloads when `careRecipient.id`
+  actually changes (not on every notify), removed in `dispose()`.
+- Guard against a stale in-flight fetch landing after a second recipient
+  switch (compare the requested recipient id before applying results).
 
 ## Status
 
-- [x] Backend route + `chatConcern.js` + tests (`rag-chat.test.js`, 8 tests)
-- [x] Mobile `RagService.askForRecipient()` + `ask_page.dart` wiring
-- [x] Full backend suite green (175/175), full mobile suite green (13/13),
-      `flutter analyze` clean
-- [ ] Manual device/emulator pass on `/ask` (scoped call, Mandarin summary,
-      concern banner → `/symptom-check`)
-- [ ] PR review, merge to `main`
+- [x] Root cause identified
+- [x] Fix implemented in `prototype_home_page.dart`
+- [ ] Manual verification: login → reminders present; switch profile →
+      schedule updates immediately, no stale data
+- [ ] Follow up with Ralph on the "Drei" log error / CRUD specifics
+- [ ] Tests, PR

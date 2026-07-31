@@ -36,10 +36,37 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   bool _loadingSchedule = true;
   String? _scheduleError;
 
+  // The schedule/reminders section isn't rebuilt by a ListenableBuilder (the
+  // header is the only part that listens directly), so without this the
+  // fetched lists go stale when the caregiver switches care recipients —
+  // Patient 1's schedule kept showing under Patient 2 until a manual
+  // pull-to-refresh. Tracked separately from SelectedProfile.careRecipient
+  // so the listener only reloads on an actual switch, not every notify.
+  String? _loadedForRecipientId;
+
   @override
   void initState() {
     super.initState();
-    _loadSchedule();
+    SelectedProfile.instance.addListener(_onProfileChanged);
+    // initState fires before SelectedProfile.initialize() (started
+    // unawaited in main.dart) necessarily finishes — loading immediately
+    // could see a null householdId/careRecipient and settle on an empty
+    // schedule that nothing ever retries, which is why reminders looked
+    // like they "disappeared" right after logging back in.
+    SelectedProfile.instance.ready.then((_) {
+      if (mounted) _loadSchedule();
+    });
+  }
+
+  @override
+  void dispose() {
+    SelectedProfile.instance.removeListener(_onProfileChanged);
+    super.dispose();
+  }
+
+  void _onProfileChanged() {
+    final recipientId = SelectedProfile.instance.careRecipient?.id;
+    if (recipientId != _loadedForRecipientId) _loadSchedule();
   }
 
   ({String householdId, String careRecipientId})? get _scope {
@@ -53,9 +80,19 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
   Future<void> _loadSchedule() async {
     final scope = _scope;
     if (scope == null) {
-      setState(() => _loadingSchedule = false);
+      _loadedForRecipientId = null;
+      setState(() {
+        _loadingSchedule = false;
+        _events = [];
+        _reminderEvents = [];
+        _medsById = {};
+      });
       return;
     }
+    // Captured up front: if the caregiver switches recipients again while
+    // this fetch is in flight, the response landing later must not clobber
+    // the newer recipient's already-loading/loaded data with the old one's.
+    final requestedRecipientId = scope.careRecipientId;
     setState(() {
       _loadingSchedule = true;
       _scheduleError = null;
@@ -71,22 +108,25 @@ class _PrototypeHomePageState extends State<PrototypeHomePage> {
           careRecipientId: scope.careRecipientId,
         ),
       ]);
+      if (!mounted || SelectedProfile.instance.careRecipient?.id != requestedRecipientId) return;
       final meds = results[0] as List<Medication>;
       final events = results[1] as List<MedicationEvent>;
       final reminders = results[2] as List<ReminderEvent>;
       events.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
       reminders.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-      if (!mounted) return;
       setState(() {
         _medsById = {for (final m in meds) m.id: m};
         _events = events;
         _reminderEvents = reminders;
+        _loadedForRecipientId = requestedRecipientId;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || SelectedProfile.instance.careRecipient?.id != requestedRecipientId) return;
       setState(() => _scheduleError = e.toString());
     } finally {
-      if (mounted) setState(() => _loadingSchedule = false);
+      if (mounted && SelectedProfile.instance.careRecipient?.id == requestedRecipientId) {
+        setState(() => _loadingSchedule = false);
+      }
     }
   }
 
