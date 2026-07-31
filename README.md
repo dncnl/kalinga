@@ -4,6 +4,12 @@ Welcome to **Kalinga**, an AI care companion for migrant caregivers. This guide 
 
 If you just want the app overview and tech stack, see the main `README.md`. This document is about **working in the repo**.
 
+> **Setting up for the first time, or about to test a build?** Read
+> **[`TESTING.md`](TESTING.md)** instead — it covers the Google Cloud auth
+> setup this doc glosses over (ADC, which APIs to enable, the two env vars
+> people always miss) and a step-by-step walkthrough of the whole app with
+> the expected result at each step.
+
 ---
 
 ## 1. Repository layout
