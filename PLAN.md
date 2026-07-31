@@ -1,41 +1,63 @@
-# F1: free-text chat symptom checker
+# Wire up ragSources (recover lost work + finish it)
 
-Branch: `feature/f1-chat-symptom-checker`, cut from `main`.
+Branch: `chore/rag-raw-sources-collection`, cut from `main`.
 
-## Why
+## What Ralph actually asked for
 
-Main already has F1 as a tap-based, deterministic triage
-(`symptom_check_page.dart` / `symptomTriage.js`) — that stays as the
-authoritative urgency path, unchanged. But the original spec calls for a
-**chat-based** symptom checker, and main's generic `/rag/ask` chat isn't
-care-recipient-scoped and doesn't translate/flag anything to family in
-Mandarin. This branch adds that free-text chat entry point alongside the
-tap-based flow, not instead of it.
+Ralph (relaying Drei's assignment) asked to unify `ragChunks`/`ragSources`
+if they're the same, add a raw-sources collection, and run a script to turn
+raw sources into chunks.
 
-## Design
+## What was actually going on
 
-- New route `POST /households/:hid/care-recipients/:crid/rag/ask`
-  (`apps/api/src/routes/rag.js`), sibling to the existing unscoped
-  `/rag/ask`. Reuses `answerQuestion()` (Firestore vector search RAG,
-  already multilingual) unchanged.
-- Records the exchange as an observation (`inputMode: 'text'`, reusing
-  `buildObservationDocument`) so it shows up for the family/trends like a
-  voice log, with a Mandarin translation via `translateToMandarin`.
-- `apps/api/src/lib/chatConcern.js` — a **deterministic keyword match**
-  (mirrors `symptomTriage.js`'s six categories, multilingual phrase list),
-  not an LLM call. It never asserts urgency; it only optionally nudges the
-  caregiver toward the tap-based `/symptom-check` flow. Urgency stays
-  exclusively `symptomTriage.js`'s job.
-- Mobile: `RagService.askForRecipient()` calls the scoped endpoint when a
-  care recipient is selected; `ask_page.dart` shows the Mandarin summary
-  and, when present, a tappable concern banner routing to `/symptom-check`.
+`ragSources` was never a stray/duplicate collection — it's formally
+declared in `packages/kalinga_firestore_package` (schema, rules, contracts,
+seed data) as exactly "raw source doc → chunked into ragChunks by
+ingest.js". It's just that `apps/api/src/rag/ingest.js` on `main` never
+implemented that: it hardcodes the corpus in `src/rag/sources/*.js` and
+writes straight to `ragChunks`, bypassing `ragSources` entirely.
+
+Turns out this was already built once — `git log --all -S"ragSources"`
+turned up two real commits (`0000010`, `e16a10e`) deep in this repo's
+history, reachable from the `polish/home-page-animations` branch lineage,
+verified live at the time, but never merged into `main`. That's very
+likely also the direct explanation for "ragSources has chunks in it too"
+in the Firestore console: real docs from that earlier run, still sitting
+there, now orphaned from current `main`'s code path.
+
+This branch ports that lost work forward onto current `main` (which has
+since gained `bulkWriter`, PDF/DOCX/GCS ingestion via `ingest-file.js` —
+none of that existed when the original commits were written) rather than
+reimplementing from scratch, plus finishes the loop `ingest-file.js` was
+missing (it wrote straight to `ragChunks`, never persisting the raw doc to
+`ragSources`, so a file ingested that way couldn't survive a later
+`ingest.js` re-run).
+
+## Changes
+
+- `ingest.js` — reads sources from Firestore `ragSources` (not the local
+  JS files) via `fetchSources()`. Added on top of the recovered version:
+  deletes now-stale trailing chunks when a re-ingested source got shorter,
+  which the original didn't handle.
+- `seedSources.js` — new, one-time: upserts `src/rag/sources/*.js` into
+  `ragSources` by id. `src/rag/sources/` is seed-only now, not read by
+  `ingest.js` anymore.
+- `ingest-file.js` — now also upserts the raw doc into `ragSources` (before
+  chunking, so a chunk/embed failure doesn't lose the raw text) alongside
+  its existing direct `ragChunks` write.
+- No schema/rules changes — `ragSources` was already fully declared.
 
 ## Status
 
-- [x] Backend route + `chatConcern.js` + tests (`rag-chat.test.js`, 8 tests)
-- [x] Mobile `RagService.askForRecipient()` + `ask_page.dart` wiring
-- [x] Full backend suite green (175/175), full mobile suite green (13/13),
-      `flutter analyze` clean
-- [ ] Manual device/emulator pass on `/ask` (scoped call, Mandarin summary,
-      concern banner → `/symptom-check`)
+- [x] Root cause of "ragSources looks like ragChunks" understood (see above)
+- [x] `ingest.js`, `seedSources.js`, `ingest-file.js` updated
+- [x] Tests: `ingest.test.js` (4), `seedSources.test.js` (1) — full backend
+      suite 180/180
+- [ ] Run `seedSources.js` + `ingest.js` against real Firestore to backfill
+      `ragSources` and regenerate `ragChunks` from it (needs live GCP
+      creds — not run from this session)
+- [ ] Confirm with Drei/Ralph whether the old orphaned `ragSources` docs
+      (if their shape differs from this branch's) should be cleared before
+      re-seeding, or just overwritten (seedSources.js upserts by id, so a
+      stale doc under a *different* id would survive untouched)
 - [ ] PR review, merge to `main`
