@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../api_config.dart';
 import '../services/rag_service.dart';
 import '../state/selected_profile.dart';
 import '../theme.dart';
@@ -41,7 +42,16 @@ class _AskPageState extends State<AskPage> {
     });
 
     try {
-      final result = await _ragService.ask(question);
+      final householdId = SelectedProfile.instance.householdId;
+      final careRecipientId = SelectedProfile.instance.careRecipient?.id;
+      final result = householdId != null && careRecipientId != null
+          ? await _ragService.askForRecipient(
+              householdId: householdId,
+              careRecipientId: careRecipientId,
+              question: question,
+              locale: demoLocale,
+            )
+          : await _ragService.ask(question);
       if (!mounted) return;
       setState(() => _answer = result);
     } catch (e) {
@@ -125,6 +135,26 @@ class _AskPageState extends State<AskPage> {
                 child: Text(_error!, style: AppTextStyles.body(fontSize: 13).copyWith(color: _red)),
               ),
             ],
+            if (_answer?.concern != null) ...[
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: () => context.push('/symptom-check'),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: const Color(0xFFFFF1E5), borderRadius: BorderRadius.circular(14)),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFE08A00)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(_answer!.concern!.message,
+                          style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87, height: 1.4)),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: Colors.black45),
+                  ]),
+                ),
+              ),
+            ],
             if (_answer != null) ...[
               const SizedBox(height: 20),
               Container(
@@ -137,6 +167,12 @@ class _AskPageState extends State<AskPage> {
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(_answer!.answer, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
+                  if (_answer!.translatedText != null) ...[
+                    const SizedBox(height: 16),
+                    Text('SENT TO FAMILY (MANDARIN)', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    Text(_answer!.translatedText!, style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.black87, height: 1.5)),
+                  ],
                   if (_answer!.sources.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text('SOURCES', style: AppTextStyles.bodyMedium(fontSize: 11).copyWith(color: Colors.grey.shade500, letterSpacing: 0.8)),
