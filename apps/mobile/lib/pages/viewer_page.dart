@@ -76,6 +76,21 @@ class _ViewerPageState extends State<ViewerPage> {
         .snapshots();
   }
 
+  // The sleep/food bars above are the only thing this page showed for a
+  // while — real, but just numbers. Every voice log, symptom check-in, and
+  // chat exchange already carries a Mandarin translation of what was
+  // actually said (translations['zh-TW'], written specifically for this
+  // audience — see buildObservationDocument.js), and none of it reached
+  // family until now.
+  Stream<QuerySnapshot<Map<String, dynamic>>> _recentObservationsStream(String householdId) {
+    return FirebaseFirestore.instance
+        .collection('households/$householdId/careRecipients/${widget.viewerId}/observations')
+        .where('status', isEqualTo: 'ready')
+        .orderBy('observedAt', descending: true)
+        .limit(8)
+        .snapshots();
+  }
+
   static List<double> _series(Map<String, dynamic>? trendSeries, String key) {
     final raw = trendSeries?[key] as List?;
     if (raw == null || raw.isEmpty) return _neutralWeek;
@@ -203,6 +218,39 @@ class _ViewerPageState extends State<ViewerPage> {
 
         const SizedBox(height: 32),
 
+        // ── Recent notes, translated ───────────────────────────────
+        Text('最新記錄', style: AppTextStyles.bodyMedium(fontSize: 16).copyWith(color: Colors.black87)),
+        const SizedBox(height: 12),
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _recentObservationsStream(data.householdId),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final docs = snapshot.data!.docs;
+            if (docs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text('本週還沒有記錄 · No records yet this week.',
+                    style: AppTextStyles.body(fontSize: 13).copyWith(color: Colors.grey.shade500)),
+              );
+            }
+            return Column(
+              children: [
+                for (final doc in docs) ...[
+                  _RecentNoteCard(data: doc.data()),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: 24),
+
         // ── Footer action ───────────────────────────────────────────
         // Two different users land here: the caregiver previewing "what
         // family sees" (wants a way back into her app) and a real family
@@ -240,6 +288,62 @@ class _ViewerPageState extends State<ViewerPage> {
             ),
           ),
         const SizedBox(height: 24),
+      ]),
+    );
+  }
+}
+
+class _RecentNoteCard extends StatelessWidget {
+  static const _red = Color(0xFFEF3E23);
+  static const _amber = Color(0xFFD97706);
+
+  final Map<String, dynamic> data;
+  const _RecentNoteCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final translations = data['translations'] as Map<String, dynamic>?;
+    final zhText = (translations?['zh-TW'] as Map<String, dynamic>?)?['text'] as String?;
+    // A translation can fail (see routes/observations.js, routes/rag.js —
+    // the record is still saved so nothing is lost) — this is the one
+    // audience that can't read the untranslated original, so say so
+    // plainly instead of showing English/Tagalog/etc. text as if it were
+    // Mandarin.
+    final text = (zhText != null && zhText.trim().isNotEmpty) ? zhText : '（翻譯失敗 · Translation unavailable）';
+
+    final safety = data['safetyAssessment'] as Map<String, dynamic>?;
+    final concernLevel = safety?['concernLevel'] as String?;
+    final isUrgent = concernLevel == 'high' || concernLevel == 'medium';
+    final urgentColor = concernLevel == 'high' ? _red : _amber;
+
+    final observedAt = data['observedAt'];
+    final date = observedAt is Timestamp ? observedAt.toDate() : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isUrgent ? urgentColor.withValues(alpha: 0.06) : Colors.grey.shade50,
+        border: Border.all(color: isUrgent ? urgentColor.withValues(alpha: 0.4) : Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (isUrgent) ...[
+          Row(children: [
+            Icon(Icons.warning_amber_rounded, size: 16, color: urgentColor),
+            const SizedBox(width: 6),
+            Text(concernLevel == 'high' ? '緊急' : '請留意', style: AppTextStyles.bodyMedium(fontSize: 12).copyWith(color: urgentColor)),
+          ]),
+          const SizedBox(height: 6),
+        ],
+        Text(text, style: AppTextStyles.body(fontSize: 14).copyWith(color: Colors.black87, height: 1.5)),
+        if (date != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
+            style: AppTextStyles.body(fontSize: 11).copyWith(color: Colors.grey.shade500),
+          ),
+        ],
       ]),
     );
   }
